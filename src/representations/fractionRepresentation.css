@@ -1,0 +1,144 @@
+/*
+ * Fraction representation primitives (GAME-186).
+ *
+ * Contract this file keeps:
+ * - ink only, no hue: filled parts are solid `currentColor`, empty parts are outlines, so the shaded
+ *   quantity survives forced colors, high contrast and greyscale;
+ * - division lines are the shared 2 CSS px thickness, drawn in the same ink as the text;
+ * - no `transform`, `transition`, `animation`, `filter` or `clip-path` is declared here, so no motion
+ *   or reduced-motion rule can change mathematical geometry;
+ * - no `font-size` for the symbolic digits or number-line labels: those sizes come from geometry, and a
+ *   stylesheet that overrode them would silently invalidate the legibility floors.
+ *
+ * Tokens fall back to the inherited colour so the primitives still render sensibly if they are ever
+ * extracted into a shared package with a different palette.
+ */
+
+.fm-representation {
+  display: inline-block;
+  color: var(--fm-text, currentColor);
+}
+
+.fm-representation--fluid {
+  display: block;
+  width: 100%;
+}
+
+.fm-representation__svg {
+  display: block;
+  overflow: visible;
+}
+
+.fm-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.fm-partition {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linejoin: miter;
+}
+
+.fm-partition[data-fill="filled"] {
+  fill: currentColor;
+}
+
+.fm-partition[data-fill="empty"] {
+  fill: none;
+}
+
+.fm-division {
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.fm-whole-frame {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.fm-symbol__digit {
+  fill: currentColor;
+  font-family: inherit;
+  font-weight: 600;
+}
+
+.fm-number-line__label {
+  fill: currentColor;
+  font-family: inherit;
+}
+
+.fm-number-line__point {
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.fm-comparison {
+  display: grid;
+  gap: 0.5rem;
+  align-items: center;
+  justify-items: center;
+  border: 1px solid var(--fm-border, currentColor);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+}
+
+.fm-comparison__whole {
+  margin: 0;
+  color: var(--fm-muted, currentColor);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.fm-comparison__side {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (forced-colors: active) {
+  .fm-partition[data-fill="filled"],
+  .fm-division,
+  .fm-whole-frame,
+  .fm-number-line__point,
+  .fm-symbol__digit,
+  .fm-number-line__label {
+    fill: CanvasText;
+    stroke: CanvasText;
+  }
+
+  .fm-partition[data-fill="empty"] {
+    fill: Canvas;
+    stroke: CanvasText;
+  }
+
+  .fm-comparison {
+    border-color: CanvasText;
+  }
+}
+
+/*
+ * The primitives are static by construction, so reduced motion changes no geometry. This block makes
+ * the promise explicit for the wrapper and its descendants rather than leaving it implied.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .fm-representation,
+  .fm-representation *,
+  .fm-comparison,
+  .fm-comparison * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

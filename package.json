@@ -22,7 +22,9 @@
     "serve:nested-host": "node scripts/nested-host-server.mjs",
     "check:purity": "node scripts/check-engine-purity.mjs",
     "check:boundary": "node scripts/check-engine-boundary.mjs",
-    "check:architecture": "npm run check:purity && npm run check:boundary",
+    "check:representations": "node scripts/check-representation-isolation.mjs",
+    "check:lanes": "node scripts/check-lane-isolation.mjs",
+    "check:architecture": "npm run check:purity && npm run check:boundary && npm run check:representations && npm run check:lanes",
     "check:privacy": "node scripts/check-privacy-surface.mjs",
     "verify": "npm run typecheck && npm run lint && npm run test:coverage && npm run check:architecture && npm run build && npm run check:privacy"
   },
