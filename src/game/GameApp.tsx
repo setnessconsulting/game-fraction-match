@@ -19,7 +19,7 @@
  * A finished board stops and says so. The next board is an explicit choice, and so is ending the session.
  */
 
-import { Component, useCallback, useState, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useState, type ReactNode } from "react";
 
 import {
   applyIntent,
@@ -34,6 +34,8 @@ import {
 } from "./session";
 import type { GradeBand } from "../lanes";
 import { Board, currentViewport, nextSeed } from "./Board";
+import { summaryFor } from "./sessionBounds";
+import { useSessionClock } from "./useSessionClock";
 
 /** The grade labels. A grade band is an ordering label; the catalogue is what the surface actually states. */
 const GRADE_LABELS: Readonly<Record<GradeBand, string>> = Object.freeze({
@@ -170,6 +172,58 @@ function Instruction({
   );
 }
 
+/**
+ * The factual summary.
+ *
+ * A projection of the session's own tally and nothing else. There is no percentage, no level, no improvement and
+ * nothing to compare against, because the game keeps no record of any other session — so a summary cannot flatter
+ * or shame anybody, it can only report. The two actions are deliberately identical in weight: playing on and
+ * leaving are equally reasonable, and neither is styled as the right answer.
+ */
+export function SessionSummaryPanel({
+  session,
+  onIntent,
+}: {
+  readonly session: GameSession;
+  readonly onIntent: (intent: GameIntent) => void;
+}) {
+  const summary = summaryFor(session.tally);
+
+  return (
+    <section
+      className="panel"
+      aria-labelledby="summary-heading"
+      data-testid="game-summary"
+      data-screen="session-summary"
+    >
+      <h2 id="summary-heading">This session</h2>
+      <p className="microcopy" data-testid="game-summary-note">
+        Facts from this session only. Nothing is saved, so there is nothing to compare it to.
+      </p>
+      <ul className="status-list" data-testid="game-summary-lines">
+        {summary.lines.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+      <p className="status-line" data-testid="game-summary-coaching">
+        {summary.coachingLine}
+      </p>
+      <div className="controls">
+        <button
+          type="button"
+          data-testid="game-play-again"
+          onClick={() => onIntent({ type: "play-again", seed: nextSeed() })}
+        >
+          Play another session
+        </button>
+        <button type="button" data-testid="game-change-grade" onClick={() => onIntent({ type: "change-grade" })}>
+          Change grade
+        </button>
+      </div>
+    </section>
+  );
+}
+
 /** The stage surface, without the shell chrome. Exported so a fixture can render one stage in isolation. */
 export function GameStage({
   session,
@@ -206,8 +260,10 @@ export function GameStage({
           onIntent={onIntent}
         />
       );
+    case "session-summary":
+      return <SessionSummaryPanel session={session} onIntent={onIntent} />;
     case "calm-recovery":
-      return <CalmRecovery onRecover={() => onIntent({ type: "end-session" })} />;
+      return <CalmRecovery onRecover={() => onIntent({ type: "change-grade" })} />;
   }
 }
 
@@ -221,15 +277,53 @@ function statusLine(stage: SessionStage, session: GameSession): string {
 
 export function GameApp() {
   const [session, setSession] = useState<GameSession>(() => createSession());
+  const [inputToken, setInputToken] = useState(0);
+  const [idleDismissed, setIdleDismissed] = useState(false);
 
   const dispatch = useCallback((intent: GameIntent) => {
+    // Every intent is a learner action, so it is also the input the idle rule measures from.
+    setInputToken((current) => current + 1);
     setSession((current) => applyIntent(current, intent));
   }, []);
 
   const recover = useCallback(() => setSession(createSession()), []);
 
+  const playing = session.stage === "board" || session.stage === "board-complete";
+  const clock = useSessionClock({
+    boardActive: playing,
+    productionBoards: session.tally.productionBoards,
+    inputToken,
+  });
+
+  /*
+   * The hard cap. A ceiling that a session could talk its way past would not be a ceiling, so this is the one
+   * place where something other than a learner action moves the arc — and it moves it *out*, to a summary, never
+   * forward into more play.
+   */
+  useEffect(() => {
+    if (!clock.bounds.hard) return;
+    if (!playing && session.stage !== "instruction") return;
+    setSession((current) => applyIntent(current, { type: "end-session" }));
+  }, [clock.bounds.hard, playing, session.stage]);
+
+  // The idle offer is dismissed by choosing to stay, and it comes back the next time the learner goes quiet.
+  useEffect(() => {
+    if (!clock.idleOffer) setIdleDismissed(false);
+  }, [clock.idleOffer]);
+
+  const showIdleOffer = clock.idleOffer && playing && !idleDismissed;
+  const showSoftPrompt = clock.bounds.soft && !clock.bounds.hard && session.stage === "board-complete";
+
   return (
-    <main className="game-shell" data-testid="game-shell" data-stage={session.stage}>
+    <main
+      className="game-shell"
+      data-testid="game-shell"
+      data-stage={session.stage}
+      data-bounds-soft={String(clock.bounds.soft)}
+      data-bounds-hard={String(clock.bounds.hard)}
+      data-active-ms={String(clock.activeMs)}
+      data-idle={String(clock.idleOffer)}
+    >
       <header className="game-shell__header">
         <p className="eyebrow">Fraction Match</p>
         <h1>Match the same amount</h1>
@@ -238,10 +332,48 @@ export function GameApp() {
         </p>
       </header>
 
-      <BoardErrorBoundary
-        key={`boundary-${session.stage}-${session.board?.seed ?? 0}`}
-        onRecover={recover}
-      >
+      {/*
+        The soft prompt is a question, not a countdown: two equal-weight actions, and it disappears the moment the
+        learner carries on. Nothing here can be lost by ignoring it for a while.
+      */}
+      {showSoftPrompt ? (
+        <section className="panel" aria-labelledby="soft-heading" data-testid="game-soft-prompt" data-screen="soft-prompt">
+          <h2 id="soft-heading">Good place to stop</h2>
+          <p className="microcopy" data-testid="game-soft-reasons">
+            {clock.bounds.softReasons.join(" · ")}. Carry on, or finish here.
+          </p>
+          <div className="controls">
+            <button type="button" data-testid="game-soft-continue" onClick={() => setIdleDismissed(true)}>
+              Keep playing
+            </button>
+            <button type="button" data-testid="game-soft-finish" onClick={() => dispatch({ type: "end-session" })}>
+              Finish session
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {/* The idle offer is calm and non-destructive: the session is still here, and staying is one button. */}
+      {showIdleOffer ? (
+        <section className="panel" aria-labelledby="idle-heading" data-testid="game-idle-offer" data-screen="idle-offer">
+          <h2 id="idle-heading">Still there?</h2>
+          <p className="microcopy">Take a break, or finish here. Nothing is lost either way.</p>
+          <div className="controls">
+            <button type="button" data-testid="game-idle-stay" onClick={() => setIdleDismissed(true)}>
+              Keep playing
+            </button>
+            <button
+              type="button"
+              data-testid="game-idle-finish"
+              onClick={() => dispatch({ type: "end-session" })}
+            >
+              Finish session
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      <BoardErrorBoundary key={`boundary-${session.stage}-${session.board?.seed ?? 0}`} onRecover={recover}>
         <GameStage session={session} onIntent={dispatch} />
       </BoardErrorBoundary>
 

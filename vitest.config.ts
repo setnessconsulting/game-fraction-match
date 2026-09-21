@@ -47,6 +47,9 @@ export default defineConfig({
         // The GAME-190 feedback module is the copy contract: which class a pair belongs to, what each explanation
         // says, and how long a mismatch stays on screen. All three are claims a test can hold it to.
         "src/game/feedback.ts",
+        // The GAME-191 session arc is arithmetic over injected timestamps: exact bounds, the idle rule, and the
+        // facts the summary reports. All of it is provable without waiting for a clock.
+        "src/game/sessionBounds.ts",
       ],
       reporter: ["text", "json-summary", "lcov"],
       thresholds: {

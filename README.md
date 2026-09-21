@@ -22,6 +22,7 @@ symbols look different. Canonical implementation repository for Jira Epic **GAME
 | Jira story | GAME-188 — FM-04 — Production visual, responsive and motion design system |
 | Jira story | GAME-189 — FM-05 — Standalone semantic React game shell and responsive board |
 | Jira story | GAME-190 — FM-06 — Explanatory equivalence feedback, mismatch recovery and bounded game feel |
+| Jira story | GAME-191 — FM-07 — Standalone session boundaries, factual summary and healthy replay |
 | Node | 24 (see `.nvmrc` / `.node-version` / `engines.node`) |
 | Runtime dependencies | `react`, `react-dom` — nothing else |
 | Release kind | `static-web` (published by `setnessconsulting/games-site`) |
@@ -328,6 +329,28 @@ A timer may only ever clear a pending comparison. The engine decided the outcome
 second card was chosen, so an automatic dismissal changes no truth — asserted by capturing the move count and
 matched set before and after it fires.
 
+### The session arc (GAME-191)
+
+The game is bounded, healthy and deterministic. A **soft prompt** appears after two production boards or three
+minutes of active play and offers two equal-weight choices; a **hard cap** at four boards or six minutes ends the
+session into a factual summary. Thirty seconds without input offers a calm way out rather than taking one.
+
+Two decisions are load-bearing:
+
+- **The clock is injected, and the math engine never sees it.** `src/game/sessionBounds.ts` takes timestamps as
+  data — the same arrangement the seed uses — so "three minutes of active play" is testable at the exact
+  millisecond rather than by waiting. How long somebody played is not a mathematical fact, so it does not belong
+  anywhere near the engine.
+- **"Active" excludes idle time inside the interval, not just at its end.** `activeMs` advances only while the
+  document is visible, a board is in play, and the learner has not been quiet for 30 seconds; a three-minute tab
+  switch credits nothing, and a visible-but-idle learner credits only the first 30 seconds of it. That is what
+  stops a background tab from quietly costing a session.
+
+The summary is a projection of facts the engine observed — boards finished, pairs matched, moves, forms
+practised, mismatches by shared signal — plus one deterministic coaching line. There is **no percentage, score,
+level, streak or comparison to anything**, because the game keeps no record of any other session to compare with.
+The two summary actions (`Play another session`, `Change grade`) are identical in styling and weight.
+
 ### Seeds and determinism
 
 The engine never reads ambient entropy. Seeds are 32-bit unsigned integers supplied as data. The
@@ -450,7 +473,7 @@ This foundation intentionally stops before the following work; it builds the sea
 | GAME-188 | Production visual/responsive/motion design | implemented here — see [`docs/design/DESIGN_SYSTEM.md`](docs/design/DESIGN_SYSTEM.md); the authority is the checked-in fallback, explicitly labelled `FALLBACK / FIGMA NOT QUALIFIED` because no Figma file exists, and it is a contract rather than a board |
 | GAME-189 | Final semantic board UX and the standalone shell | implemented here — see [`docs/game/BOARD.md`](docs/game/BOARD.md); the playable game is the root surface and the debug galleries moved to `#debug`. Not the GAME-335 iframe fixture, not GAME-190 feedback, not GAME-191 session bounds |
 | GAME-190 | Explanatory match/mismatch feedback and bounded game feel | implemented here — see [`docs/game/COPY_REGISTER.md`](docs/game/COPY_REGISTER.md); every explanation is generated from the engine's own values, bounded to 12 words, and the inspection window is identical under reduced motion. Not the GAME-191 session arc, and audio is deliberately absent (silence-first v1) |
-| GAME-191 | Bounded session lifecycle and factual summary | session bounds or summary |
+| GAME-191 | Bounded session lifecycle and factual summary | implemented here — the arc is bounded at 2 boards/3 minutes soft and 4 boards/6 minutes hard, `activeMs` counts only visible, in-play, non-idle time, and the summary reports this session's own facts with a deterministic coaching line. Not GAME-192's accessibility qualification |
 | GAME-192 | Full accessibility and device qualification (axe tooling is pre-provisioned) | accessibility qualification |
 | GAME-193 | Comparator scorecard and bounded playtest | any playtest or comparison |
 | GAME-194 | Immutable R2 publication and production promotion | publication, manifests, promotion |
