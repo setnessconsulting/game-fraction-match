@@ -45,6 +45,20 @@ export const LANE_ROOT = "src/lanes";
 /** Hidden engine internals a lane may never reach: only the boundary module is a public surface. */
 export const LANE_DEEP_ENGINE_SEGMENTS = 1;
 
+/**
+ * The design layer (GAME-188), which is an authority about appearance and nothing else.
+ *
+ * It holds sizes, surfaces, states, motion and the responsive contract. It must therefore import nothing at
+ * all: not the engine, which owns mathematics; not the representations, which own pictures; not the lanes,
+ * which own content; and no package, because a design authority that depended on a renderer could not be
+ * reasoned about without one. Purity is also what lets `planBoardLayout` answer "does a 16-card board fit a
+ * 320px phone" in plain Node, which is the claim the story is really making.
+ */
+export const DESIGN_ROOT = "src/design";
+
+/** Packages the design layer may import. None: it is data and pure functions. */
+export const DESIGN_ALLOWED_PACKAGES = Object.freeze([]);
+
 /* ------------------------------------------------------------------ *
  * Source stripping
  * ------------------------------------------------------------------ */
@@ -518,6 +532,90 @@ export function findLaneViolations(repoPath, source) {
   for (const violation of findLaneAmbientViolations(source)) {
     findings.push({
       ruleId: violation.ruleId,
+      line: violation.line,
+      detail: `${violation.message} (${violation.excerpt})`,
+    });
+  }
+
+  return findings;
+}
+
+/* ------------------------------------------------------------------ *
+ * Design isolation scanners (GAME-188)
+ * ------------------------------------------------------------------ */
+
+/**
+ * Every import violation in one design module.
+ *
+ * Stricter than the lane layer on purpose. A lane may consume two public boundaries because it composes
+ * content from them; the design layer consumes none, because its whole job is to be the thing the others are
+ * measured against. A design token that imported the engine could be re-derived by a drawing, and a layout
+ * plan that imported React could not be reasoned about without a renderer — which is exactly the reasoning
+ * `planBoardLayout` exists to make unnecessary.
+ */
+export function findDesignImportViolations(repoPath, source) {
+  const findings = [];
+
+  for (const { specifier, line } of findImportSpecifiers(source)) {
+    const resolved = resolveSpecifier(repoPath, specifier);
+
+    if (resolved !== null && isDesignInternalImport(resolved)) continue;
+
+    if (resolved === null) {
+      findings.push({
+        ruleId: "design-package-import",
+        line,
+        specifier,
+        resolved,
+        message:
+          `the design layer must import no package at all; "${specifier}" is not application source. ` +
+          "It is data and pure functions, and it stays answerable without a renderer.",
+      });
+      continue;
+    }
+
+    if (isOutOfSourceImport(resolved)) {
+      findings.push({
+        ruleId: "design-out-of-source-import",
+        line,
+        specifier,
+        resolved,
+        message: `the design layer must not import repository tooling (resolved "${resolved}")`,
+      });
+      continue;
+    }
+
+    findings.push({
+      ruleId: "design-foreign-import",
+      line,
+      specifier,
+      resolved,
+      message:
+        `the design layer must stay self-contained; "${specifier}" resolves to "${resolved}". ` +
+        "Mathematics belongs to the engine, pictures to the representations, content to the lanes.",
+    });
+  }
+
+  return findings;
+}
+
+/** Whether a resolved path stays inside the design layer. */
+export function isDesignInternalImport(resolvedPath) {
+  if (resolvedPath === null) return false;
+  return resolvedPath === DESIGN_ROOT || resolvedPath.startsWith(`${DESIGN_ROOT}/`);
+}
+
+/** Every design-layer violation in one module: imports first, then ambient capability. */
+export function findDesignViolations(repoPath, source) {
+  const findings = findDesignImportViolations(repoPath, source).map((finding) => ({
+    ruleId: finding.ruleId,
+    line: finding.line,
+    detail: finding.message,
+  }));
+
+  for (const violation of findPatternViolations(stripCommentsAndStrings(source), ENGINE_AMBIENT_RULES)) {
+    findings.push({
+      ruleId: `design-${violation.ruleId}`,
       line: violation.line,
       detail: `${violation.message} (${violation.excerpt})`,
     });

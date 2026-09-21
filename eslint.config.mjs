@@ -117,6 +117,52 @@ export default defineConfig(
     },
   },
   {
+    // The design layer (GAME-188) is an authority about appearance: sizes, surfaces, states, motion and the
+    // responsive contract. It must import nothing at all — not the engine, which owns mathematics, not the
+    // representations, which own pictures, not the lanes, which own content, and no package, so a design
+    // decision stays answerable in plain Node. `check:design` enforces the same rules over source text; this
+    // layer fails fast in editors as well.
+    files: ["src/design/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/engine", "**/engine/**", "**/representations", "**/representations/**", "**/lanes", "**/lanes/**", "**/app/**"],
+              message:
+                "The design layer declares appearance only: import nothing but its own modules, so the others stay measurable against it.",
+            },
+            {
+              group: ["react", "react-dom", "react-dom/*", "**/scripts/**"],
+              message: "The design layer is data and pure functions; it must stay answerable without a renderer.",
+            },
+          ],
+        },
+      ],
+      "no-restricted-globals": [
+        "error",
+        { name: "window", message: "The design layer must not read browser globals; it is a pure contract." },
+        { name: "document", message: "The design layer must not touch the DOM; the fit planner answers without one." },
+        { name: "localStorage", message: "The design layer must not read or write persistence." },
+        { name: "sessionStorage", message: "The design layer must not read or write persistence." },
+        { name: "indexedDB", message: "The design layer must not read or write persistence." },
+        { name: "navigator", message: "The design layer must not read browser globals." },
+        { name: "fetch", message: "The design layer must not perform network access." },
+        { name: "crypto", message: "The design layer must not read ambient entropy." },
+        { name: "setTimeout", message: "The design layer declares motion timings as data; it does not schedule them." },
+        { name: "setInterval", message: "The design layer declares motion timings as data; it does not schedule them." },
+        { name: "requestAnimationFrame", message: "The design layer must not schedule frame callbacks." },
+      ],
+      "no-restricted-properties": [
+        "error",
+        { object: "Math", property: "random", message: "The design layer must be deterministic." },
+        { object: "Date", property: "now", message: "The design layer must not read the wall clock." },
+        { object: "performance", property: "now", message: "The design layer must not read a high-resolution clock." },
+      ],
+    },
+  },
+  {
     // The deterministic engine is the mathematical authority. It must stay pure: no React,
     // no DOM, no clock, no ambient entropy, no persistence, no network. The repository
     // `check:purity` script enforces the same rules over source text; this lint layer fails

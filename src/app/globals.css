@@ -6,6 +6,22 @@
   --fm-muted: #5a6472;
   --fm-border: #d5d0c6;
   --fm-accent: #2f5d8a;
+
+  /*
+   * GAME-188 design tokens — light theme.
+   *
+   * `--fm-text` and `--fm-surface` above are the GAME-186 contrast pair and are inherited unchanged: the
+   * 3:1 division-line floor was measured against exactly those two values, and `src/representations`
+   * mirrors them in `DIVISION_LINE_TOKENS`. Everything below is GAME-188's, and each token exists because
+   * a required state needed a surface, a boundary or an ink the inherited six could not express.
+   * `tests/designTokens.test.ts` parses this block and fails if the two ever drift.
+   */
+  --fm-surface-sunken: #eceae4;
+  --fm-surface-raised: #ffffff;
+  --fm-border-strong: #8b8578;
+  --fm-focus-ring: #1a4d7a;
+  --fm-ink-matched: #1f5c3a;
+  --fm-ink-mismatch: #8a3a2a;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -16,6 +32,14 @@
     --fm-muted: #a6b0bd;
     --fm-border: #333c48;
     --fm-accent: #8fb8e0;
+
+    /* GAME-188 design tokens — dark theme. */
+    --fm-surface-sunken: #10141a;
+    --fm-surface-raised: #232a34;
+    --fm-border-strong: #6b7889;
+    --fm-focus-ring: #a8ccf0;
+    --fm-ink-matched: #7fd4a0;
+    --fm-ink-mismatch: #f0a892;
   }
 }
 
@@ -34,7 +58,7 @@ body {
 .page-shell {
   margin: 0 auto;
   max-width: 64rem;
-  padding: 1.5rem 1rem 3rem;
+  padding: 1.5rem 8px 3rem;
 }
 
 .eyebrow {
@@ -120,7 +144,7 @@ button:disabled {
 }
 
 button:focus-visible {
-  outline: 3px solid var(--fm-accent);
+  outline: 3px solid var(--fm-focus-ring);
   outline-offset: 2px;
 }
 
@@ -323,4 +347,253 @@ button:focus-visible {
   color: var(--fm-muted);
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * GAME-188 board, card and state design.
+ *
+ * The board's geometry is NOT decided here. `planBoardLayout` in `src/design/responsive.ts` computes the
+ * card size, column count and gap for the current viewport, and the reference surface writes those three
+ * numbers into the custom properties below. These rules only consume them, which is the whole point: the
+ * fit contract is arithmetic in one place, and CSS cannot quietly disagree with arithmetic it does not own.
+ *
+ * `tests/e2e/designSystem.spec.ts` measures the *rendered* board at every base viewport and fails if the
+ * implementation disagrees with the plan.
+ */
+:root {
+  --fm-board-columns: 4;
+  --fm-card-size: 68px;
+  --fm-board-gap: 4px;
+}
+
+.fm-board {
+  display: grid;
+  gap: var(--fm-board-gap);
+  grid-template-columns: repeat(var(--fm-board-columns), var(--fm-card-size));
+  justify-content: center;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.fm-board__item {
+  display: flex;
+}
+
+/*
+ * The five colour-independent card states.
+ *
+ * Every one of these is readable in greyscale, which is what "distinguishable without colour" requires: the
+ * differences are boundary style, boundary width and the marker glyph in the DOM. Colour is applied on top
+ * as reinforcement, never as the channel that carries the state. `tests/designStates.test.ts` proves the
+ * five declared non-colour channels are mutually distinct, and `tests/e2e/designSystem.spec.ts` renders them
+ * under forced colors to prove the boundary survives.
+ */
+.fm-board__card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--fm-card-size);
+  height: var(--fm-card-size);
+  padding: 0;
+  background: var(--fm-surface-raised);
+  border: 1px dashed var(--fm-border);
+  border-radius: 12px;
+  color: var(--fm-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hidden: dashed boundary, no value in the DOM at all, and a back-of-card marker. */
+.fm-board__card[data-card-state="hidden"] {
+  border-style: dashed;
+  border-width: 1px;
+  color: var(--fm-muted);
+}
+
+/* Selected (the engine's `revealed`): solid emphasized boundary plus a raised surface. */
+.fm-board__card[data-card-state="revealed"] {
+  border-style: solid;
+  border-width: 2px;
+  border-color: var(--fm-border-strong);
+  background: var(--fm-surface);
+}
+
+/* Matched: the thickest boundary — the widest non-colour step available on a card. */
+.fm-board__card[data-card-state="matched"] {
+  border-style: solid;
+  border-width: 3px;
+  border-color: var(--fm-ink-matched);
+}
+
+/* A pending comparison belongs to the pair, so it is declared on the board rather than on a card. */
+.fm-board[data-comparison="pending"] .fm-board__card[data-card-state="revealed"] {
+  border-style: solid;
+  border-width: 2px;
+  border-color: var(--fm-focus-ring);
+}
+
+.fm-board__marker {
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.fm-board__stamp {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+/* Explaining: a reserved slot below the pair, so explanatory copy never covers a card. */
+.fm-board__explanation {
+  margin: 0.5rem auto 0;
+  padding: 0.5rem 0.75rem;
+  max-width: 32rem;
+  border: 1px dashed var(--fm-border-strong);
+  border-radius: 10px;
+  color: var(--fm-text);
+  background: var(--fm-surface);
+  font-size: 0.875rem;
+}
+
+/*
+ * Progress is facts only: no score, no streak, no timer. There is nothing here that can be lost.
+ */
+.fm-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+  color: var(--fm-muted);
+  font-size: 0.875rem;
+}
+
+.fm-progress__value {
+  color: var(--fm-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Focus is an outline rather than a colour change, so it survives forced colors and remains visible on
+ * accent-filled, raised and sunken surfaces alike.
+ */
+.fm-board__card:focus-visible,
+.design-panel button:focus-visible {
+  outline: 3px solid var(--fm-focus-ring);
+  outline-offset: 2px;
+}
+
+/*
+ * Forced colors: the design states its behaviour explicitly rather than relying on the user agent. Every
+ * boundary is kept by border-width and border-style, and the inks map onto system colours, so the five
+ * colour-independent states stay five states with no hue in play at all.
+ */
+@media (forced-colors: active) {
+  .fm-board__card {
+    background: Canvas;
+    border-color: CanvasText;
+    color: CanvasText;
+  }
+
+  .fm-board__card[data-card-state="hidden"] {
+    border-style: dashed;
+  }
+
+  .fm-board__card[data-card-state="revealed"] {
+    border-style: solid;
+    border-width: 2px;
+  }
+
+  .fm-board__card[data-card-state="matched"] {
+    border-style: solid;
+    border-width: 3px;
+  }
+
+  .fm-board__marker,
+  .fm-board__stamp {
+    color: CanvasText;
+    forced-color-adjust: none;
+  }
+
+  .fm-board__explanation {
+    background: Canvas;
+    border-color: CanvasText;
+    color: CanvasText;
+  }
+
+  .fm-board__card:focus-visible {
+    outline-color: Highlight;
+  }
+}
+
+/*
+ * Reduced motion: motion is presentation only, so removing it must remove no information. Durations collapse
+ * to zero while every state, boundary and glyph stays exactly as it is — that is the parity the motion
+ * contract promises, and `tests/designMotion.test.ts` proves the outcomes are identical rather than similar.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .fm-board__card,
+  .fm-board,
+  .fm-board__explanation {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+/*
+ * 200% zoom / reflow. Vertical page scrolling is allowed; horizontal content loss is not. The board reflows
+ * to fewer columns because `planBoardLayout` is asked for the zoomed viewport, and these rules only
+ * guarantee that nothing else on the page can force a horizontal scrollbar.
+ */
+.page-shell {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.design-panel {
+  /* The chrome the fit planner budgets for: 8px page padding + 8px here + the 1px panel border is the 17px
+     per side that `BOARD_CHROME_CSS_PX` subtracts, and the difference between a 68px legible card and a
+     smaller illegible one on a 320px viewport. */
+  padding-left: 8px;
+  padding-right: 8px;
+  max-width: 100%;
+}
+
+.design-token-list,
+.design-state-list,
+.design-motion-list {
+  margin: 0.5rem 0 1rem;
+  padding-left: 1.1rem;
+}
+
+.design-token-list code,
+.design-state-list code,
+.design-motion-list code {
+  font-variant-numeric: tabular-nums;
+}
+
+.design-authority {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--fm-border-strong);
+  border-radius: 10px;
+  background: var(--fm-surface-sunken);
+  font-weight: 700;
+}
+
+.design-note {
+  margin: 0 0 0.5rem;
+  color: var(--fm-muted);
+  font-size: 0.875rem;
+}
+
+.design-swatch {
+  display: inline-block;
+  width: 1.5rem;
+  height: 1rem;
+  border: 1px solid var(--fm-border-strong);
+  border-radius: 4px;
+  vertical-align: text-bottom;
 }

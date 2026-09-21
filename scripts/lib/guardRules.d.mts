@@ -84,6 +84,27 @@ export function findLaneImportViolations(repoPath: string, source: string): Lane
 export function findLaneAmbientViolations(source: string): GuardViolation[];
 export function findLaneViolations(repoPath: string, source: string): LaneViolation[];
 
+export type DesignImportFinding = {
+  readonly ruleId: string;
+  readonly line: number;
+  readonly specifier: string;
+  readonly resolved: string | null;
+  readonly message: string;
+};
+
+export type DesignViolation = {
+  readonly ruleId: string;
+  readonly line: number;
+  readonly detail: string;
+};
+
+export const DESIGN_ROOT: string;
+export const DESIGN_ALLOWED_PACKAGES: readonly string[];
+
+export function isDesignInternalImport(resolvedPath: string | null): boolean;
+export function findDesignImportViolations(repoPath: string, source: string): DesignImportFinding[];
+export function findDesignViolations(repoPath: string, source: string): DesignViolation[];
+
 export const ENGINE_AMBIENT_RULES: readonly GuardPatternRule[];
 export const ALLOWED_RUNTIME_DEPENDENCIES: readonly string[];
 export const PRIVACY_RULES: readonly GuardPatternRule[];

@@ -34,6 +34,11 @@ export default defineConfig({
         "src/representations/**/*.ts",
         "src/representations/**/*.tsx",
         "src/lanes/**/*.ts",
+        // The GAME-188 design layer is the appearance authority: tokens, the state inventory, the responsive
+        // fit contract and the motion spec. The fit contract is the reason it is measured rather than
+        // reviewed — "a 16-card board fits a 320x568 phone" is arithmetic, and arithmetic that is not
+        // covered is arithmetic that can quietly stop being true.
+        "src/design/**/*.ts",
       ],
       reporter: ["text", "json-summary", "lcov"],
       thresholds: {
