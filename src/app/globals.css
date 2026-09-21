@@ -597,3 +597,73 @@ button:focus-visible {
   border-radius: 4px;
   vertical-align: text-bottom;
 }
+
+/*
+ * GAME-189 playable shell.
+ *
+ * The board grid reuses the GAME-188 card states and the GAME-188 layout custom properties, so a card looks the
+ * same here as it does in the design panel. What differs is that a card's size is the *lane's* qualified box,
+ * written in by the shell from the board plan — a picture is never scaled to fit a viewport, because the lane's
+ * coverage proof was a measurement at that exact box.
+ */
+.game-shell {
+  margin: 0 auto;
+  max-width: 64rem;
+  padding: 1.5rem 8px 3rem;
+}
+
+.game-shell__header h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+}
+
+.game-board {
+  margin-top: 1rem;
+  padding: 8px;
+  background: var(--fm-surface-sunken);
+  border: 1px solid var(--fm-border);
+  border-radius: 16px;
+}
+
+.game-board__heading {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.game-board .fm-progress {
+  margin-bottom: 0.5rem;
+}
+
+/* A cell is a column so the stated value can sit under the card without changing the card's own box. */
+.fm-board__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.game-card {
+  cursor: pointer;
+}
+
+.game-card:disabled {
+  cursor: default;
+}
+
+.game-card__label {
+  color: var(--fm-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-board > .controls {
+  justify-content: center;
+}
+
+.game-board .fm-board__explanation {
+  text-align: center;
+}
+
+.game-board .fm-board__explanation p {
+  margin: 0 0 0.5rem;
+}

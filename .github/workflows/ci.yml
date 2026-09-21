@@ -88,8 +88,8 @@ jobs:
         with:
           name: fraction-match-verification-${{ github.sha }}
           path: .
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Chromium, Firefox and WebKit
+        run: npx playwright install --with-deps chromium firefox webkit
       - id: direct
         name: Direct build smoke
         run: npm run test:e2e:run

@@ -38,6 +38,23 @@ export default defineConfig({
         timeout: 120_000,
       },
   projects: [
+    // Chromium runs the whole journey suite: the engine, representation, lane and design qualifications were all
+    // made here, and cross-engine qualification of *those* surfaces belongs to GAME-192.
     { name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } } },
+    /*
+     * GAME-189 requires the *game* to be qualified beyond one engine, so Firefox and mobile WebKit run the board
+     * journey. The scope is deliberate: a gallery that only ever claimed Chromium should not be quietly promoted
+     * to a cross-engine claim by configuration.
+     */
+    {
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"], viewport: { width: 1280, height: 800 } },
+      testMatch: /gameBoard\.spec\.ts/,
+    },
+    {
+      name: "mobile-webkit",
+      use: { ...devices["iPhone 13"] },
+      testMatch: /gameBoard\.spec\.ts/,
+    },
   ],
 });

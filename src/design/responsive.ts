@@ -99,6 +99,16 @@ export type BoardLayoutRequest = {
   readonly zoom?: ZoomLevel;
   /** Cards may be allowed above the touch floor but below the legibility floor only where zoom compensates. */
   readonly minCardCssPx?: number;
+  /**
+   * Pin the card to an exact size instead of searching for one.
+   *
+   * Used when the card size is not the design's to choose. A lane's `cardBox` is the box its representations
+   * were qualified at, so dealing that content and then rendering it smaller would invalidate a legibility
+   * proof another story made. With a pinned size the planner only reflows columns, and it treats "does not fit
+   * at 100% zoom" as a recorded fact rather than a failure — because the caller has explicitly accepted page
+   * scrolling in exchange for not shrinking the picture.
+   */
+  readonly fixedCardCssPx?: number;
 };
 
 export type BoardLayout = {
@@ -117,6 +127,8 @@ export type BoardLayout = {
   /** True when the page must scroll vertically. Allowed at 200% zoom only. */
   readonly requiresPageScroll: boolean;
   readonly minCardCssPx: number;
+  /** True when the caller pinned the card size rather than letting the planner choose it. */
+  readonly cardSizePinned: boolean;
   readonly problems: readonly string[];
 };
 
@@ -147,31 +159,45 @@ export function planBoardLayout(request: BoardLayoutRequest): BoardLayout {
   const availableHeightCssPx = effectiveHeight - BOARD_CHROME_CSS_PX * 2 - HUD_RESERVE_CSS_PX[layoutClass];
 
   const problems: string[] = [];
-  let columns = preferredColumnsFor(request.cardCount);
-  let cardCssPx = 0;
+  const pinnedCardCssPx = request.fixedCardCssPx;
+  const cardSizePinned = pinnedCardCssPx !== undefined;
 
-  // Reduce columns until a card can clear the floor. This is the reflow path, not a fallback.
-  while (columns > 1) {
-    cardCssPx = Math.min(
-      MAX_CARD_CSS_PX,
-      Math.floor((availableWidthCssPx - (columns - 1) * BOARD_GAP_CSS_PX) / columns),
+  let columns: number;
+  let cardCssPx: number;
+
+  if (pinnedCardCssPx !== undefined) {
+    // The card size belongs to the content, so only the columns are ours to choose.
+    cardCssPx = pinnedCardCssPx;
+    const perRow = Math.floor(
+      (availableWidthCssPx + BOARD_GAP_CSS_PX) / (Math.max(1, cardCssPx) + BOARD_GAP_CSS_PX),
     );
-    if (cardCssPx >= minCardCssPx) break;
-    columns -= 1;
-  }
-  if (columns === 1) {
-    cardCssPx = Math.min(MAX_CARD_CSS_PX, availableWidthCssPx);
+    columns = Math.min(Math.max(1, perRow), preferredColumnsFor(request.cardCount));
+  } else {
+    columns = preferredColumnsFor(request.cardCount);
+    cardCssPx = 0;
+
+    // Reduce columns until a card can clear the floor. This is the reflow path, not a fallback.
+    while (columns > 1) {
+      cardCssPx = Math.min(
+        MAX_CARD_CSS_PX,
+        Math.floor((availableWidthCssPx - (columns - 1) * BOARD_GAP_CSS_PX) / columns),
+      );
+      if (cardCssPx >= minCardCssPx) break;
+      columns -= 1;
+    }
+    if (columns === 1) {
+      cardCssPx = Math.min(MAX_CARD_CSS_PX, availableWidthCssPx);
+    }
   }
 
   const rows = Math.ceil(request.cardCount / columns);
   const boardWidthCssPx = columns * cardCssPx + (columns - 1) * BOARD_GAP_CSS_PX;
   let boardHeightCssPx = rows * cardCssPx + (rows - 1) * BOARD_GAP_CSS_PX;
 
-  // Shrink the card rather than overflow, but never below the floor: the floor is the contract.
-  if (boardHeightCssPx > availableHeightCssPx && rows > 0) {
-    const fitted = Math.floor(
-      (availableHeightCssPx - (rows - 1) * BOARD_GAP_CSS_PX) / rows,
-    );
+  // Shrink the card rather than overflow, but never below the floor, and never when the size is pinned:
+  // a pinned size is a legibility proof and shrinking it is what the pin exists to prevent.
+  if (!cardSizePinned && boardHeightCssPx > availableHeightCssPx && rows > 0) {
+    const fitted = Math.floor((availableHeightCssPx - (rows - 1) * BOARD_GAP_CSS_PX) / rows);
     if (fitted >= minCardCssPx) {
       cardCssPx = Math.min(cardCssPx, fitted);
       boardHeightCssPx = rows * cardCssPx + (rows - 1) * BOARD_GAP_CSS_PX;
@@ -196,7 +222,7 @@ export function planBoardLayout(request: BoardLayoutRequest): BoardLayout {
   if (cardCssPx < 44) {
     problems.push(`cards would render at ${cardCssPx}px, below the 44px minimum touch target`);
   }
-  if (zoom === 1 && !fitsWithoutScrolling) {
+  if (zoom === 1 && !fitsWithoutScrolling && !cardSizePinned) {
     problems.push(
       "the board does not fit at 100% zoom, so it would scroll inside itself; " +
         "the base viewports must fit the whole active board",
@@ -217,6 +243,7 @@ export function planBoardLayout(request: BoardLayoutRequest): BoardLayout {
     fitsWithoutScrolling,
     requiresPageScroll,
     minCardCssPx,
+    cardSizePinned,
     problems: Object.freeze(problems),
   });
 }

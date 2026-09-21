@@ -3,15 +3,13 @@
 Standalone browser math game: match two cards that represent the **same amount**, even when the
 symbols look different. Canonical implementation repository for Jira Epic **GAME-97**.
 
-> **This build is the GAME-185 engine, the GAME-186 representation primitives, the GAME-187 lane layer
-> and the GAME-188 design system, not the finished Fraction Match experience.** It ships a deterministic
-> fraction engine, accessible SVG representation primitives for all five families, the grade lanes with
-> their checked-in curriculum map, between-board adaptation and bounded session-local review, the
-> production design authority (tokens, the required state inventory, the responsive fit contract and the
-> motion spec), provenance, architecture guards, CI, and a browser shell with a primitives gallery, a lane
-> panel and a design panel that prove the standalone artifact boots and that the engine drives the UI. The
-> production card art, board UX, feedback system and session lifecycle are deliberately **not** implemented
-> here.
+> **The root of this artifact is the playable game.** Choose a grade, play a warm-up, play a production board —
+> built on the GAME-185 engine, the GAME-186 representation primitives, the GAME-187 lanes and the GAME-188 design
+> system. The debug shell that each earlier story qualified its artefact in is behind `#debug`.
+>
+> The arcade card art, the explanatory feedback (GAME-190), the session bounds and factual summary (GAME-191), the
+> accessibility qualification (GAME-192) and the games-site host fixture (GAME-335) are deliberately **not**
+> implemented here.
 
 ## Status
 
@@ -22,6 +20,7 @@ symbols look different. Canonical implementation repository for Jira Epic **GAME
 | Jira story | GAME-186 — FM-02 — Accessible SVG fraction representation primitives |
 | Jira story | GAME-187 — FM-03 — Standalone grade lanes, representation progression and bounded review |
 | Jira story | GAME-188 — FM-04 — Production visual, responsive and motion design system |
+| Jira story | GAME-189 — FM-05 — Standalone semantic React game shell and responsive board |
 | Node | 24 (see `.nvmrc` / `.node-version` / `engines.node`) |
 | Runtime dependencies | `react`, `react-dom` — nothing else |
 | Release kind | `static-web` (published by `setnessconsulting/games-site`) |
@@ -96,15 +95,21 @@ src/design/            Production design authority (GAME-188): tokens, the requi
   responsive.ts        Base viewports, the board fit planner and the zoom/reflow contract.
   motion.ts            Motion timings, the celebration bounds and reduced-motion parity.
 
-src/App.tsx            Foundation shell: projects engine state, dispatches engine actions.
-src/app/               Foundation debug fixture, the GAME-186 gallery, the GAME-187 lane panel, the
-                       GAME-188 design panel, styles.
+src/App.tsx            Application root: the game, or the debug shell behind `#debug`.
+src/app/               Debug fixture, the GAME-186 gallery, the GAME-187 lane panel, the GAME-188 design
+                       panel, styles.
+src/game/              The playable surface (GAME-189): session model, focus model, board, shell, recovery.
+  session.ts           Every shell decision, with no React: grade, lane, warm-up, stages, intents.
+  focus.ts             The deterministic roving-focus model, as arithmetic.
+  Board.tsx            The board: engine state in, typed intents out, GAME-188 card states applied.
+  GameApp.tsx          The stage machine, the calm-recovery boundary and the setup/instruction screens.
 scripts/               Architecture guards and the nested asset-base harness.
 tests/                 Unit, property, architecture-guard and browser tests.
 docs/provenance/       Legacy baseline provenance record.
 docs/representations/   The GAME-186 representation contract, written for its consumers.
 docs/lanes/            The GAME-187 lane contract and the grades 3-5 curriculum map.
 docs/design/           The GAME-188 design authority (labelled FALLBACK / FIGMA NOT QUALIFIED).
+docs/game/             The GAME-189 board and shell contract.
 ```
 
 ### Rational and engine authority
@@ -275,6 +280,29 @@ The authority is the checked-in specification at [`docs/design/DESIGN_SYSTEM.md`
 labelled **`FALLBACK / FIGMA NOT QUALIFIED`**: the story prefers a persistent Figma `fileKey`, no such file
 exists for this project, and no Figma evidence is claimed anywhere in this repository.
 
+### The playable board (GAME-189)
+
+The **root of the artifact is now the game**: choose a grade, play a warm-up, play a production board. The debug
+shell that each earlier story qualified its artefact in moved behind `#debug`, so what ships is the product rather
+than a gallery. The full contract is in [`docs/game/BOARD.md`](docs/game/BOARD.md).
+
+`src/game/session.ts` holds every decision the shell makes and contains no React, which is what makes the story's
+authority rule structural rather than conventional: React renders engine state and emits intents, and it never
+computes a match. Every question with a right answer is asked of the engine — `cardStateOf`, `isCardSelectable`,
+`remainingPairCount`, `isGameComplete` — and nothing advances on a timer.
+
+Content comes from GAME-187's **reviewed curriculum map**: a grade plays the largest board its own published lanes
+deal, and the warm-up is the same lane re-dealt at the warm-up pair count, so the two boards share one
+engine/action path. Grade 3 therefore deals 8 cards rather than 16, because that is what its catalogue publishes —
+the shell does not inflate a grade's content to reach a board size.
+
+**The card size is not the design's to choose.** A card is drawn at the box its lane was qualified at and the grid
+reflows columns around it, because the lane's coverage proof was a measurement at that box. That is in direct
+tension with GAME-188's "a 16-card board fits 320×568 at 100% zoom" — a 16-card board at the 96px qualified box
+needs 396px of width, which a 320px or 390px phone cannot give. Both claims are recorded in
+[`docs/game/BOARD.md`](docs/game/BOARD.md); this change keeps every legibility proof intact and lets a phone
+scroll, and the conflict needs an owner decision before GAME-194 promotes anything.
+
 ### Seeds and determinism
 
 The engine never reads ambient entropy. Seeds are 32-bit unsigned integers supplied as data. The
@@ -395,7 +423,7 @@ This foundation intentionally stops before the following work; it builds the sea
 | GAME-186 | Accessible SVG representation primitives over these rational values | implemented here — see [`docs/representations/CONTRACT.md`](docs/representations/CONTRACT.md); still not a board, a lane or production card art |
 | GAME-187 | Grade 3/4/5 lanes, denominator catalogues, representation mixes, distractors, progression and review | implemented here — see [`docs/lanes/CONTRACT.md`](docs/lanes/CONTRACT.md) and [`docs/lanes/CURRICULUM_MAP.md`](docs/lanes/CURRICULUM_MAP.md); it is content and rules, not a board, a session UI or production card art |
 | GAME-188 | Production visual/responsive/motion design | implemented here — see [`docs/design/DESIGN_SYSTEM.md`](docs/design/DESIGN_SYSTEM.md); the authority is the checked-in fallback, explicitly labelled `FALLBACK / FIGMA NOT QUALIFIED` because no Figma file exists, and it is a contract rather than a board |
-| GAME-189 | Final semantic board UX and the standalone shell | the production board |
+| GAME-189 | Final semantic board UX and the standalone shell | implemented here — see [`docs/game/BOARD.md`](docs/game/BOARD.md); the playable game is the root surface and the debug galleries moved to `#debug`. Not the GAME-335 iframe fixture, not GAME-190 feedback, not GAME-191 session bounds |
 | GAME-190 | Explanatory match/mismatch feedback and bounded game feel | any feedback system or dwell timing |
 | GAME-191 | Bounded session lifecycle and factual summary | session bounds or summary |
 | GAME-192 | Full accessibility and device qualification (axe tooling is pre-provisioned) | accessibility qualification |
@@ -417,8 +445,15 @@ surface drives yet. From GAME-188: the design authority is the checked-in fallba
 — no Figma file exists for this project and none is claimed — so the design's provenance stays unqualified
 until a real `fileKey` is recorded; 200% zoom is qualified by emulating the halved content viewport rather than
 by driving a browser's own zoom setting; catalog card art and copy are not produced here, because inventing
-placeholder art would pre-empt GAME-194's promotion review. Full accessibility and device qualification belongs
-to GAME-192, and the session lifecycle that would exercise adaptation in play belongs to GAME-191.
+placeholder art would pre-empt GAME-194's promotion review. From GAME-189: the game is playable, but **the
+GAME-335 iframe fixture is not demonstrated** — GAME-335 is in Ready, not Done, and its games-site host contract
+is its own work; a 16-card board at the qualified 96px card box does not fit the two phone base viewports, so those
+viewports scroll and the whole active board is not simultaneously visible, which is a recorded conflict between
+GAME-188's fit table and GAME-187's coverage box rather than a silent choice; the mismatch surface states the fact
+and offers a continue rather than teaching anything, because the explanation belongs to GAME-190; there are no
+session bounds or summary, because those belong to GAME-191; and cross-engine scope is the board only — Chromium,
+Firefox and mobile WebKit run the board journey, while the representation, lane and design qualifications remain
+Chromium-only by their own recorded limitation. Full accessibility and device qualification belongs to GAME-192.
 
 ## Provenance
 
