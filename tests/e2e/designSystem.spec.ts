@@ -34,7 +34,7 @@ const MIN_TOUCH_TARGET_CSS_PX = 44;
 
 test.describe("GAME-188 design system — shipped build", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/#debug");
     await expect(page.getByTestId("design-panel")).toBeVisible();
   });
 

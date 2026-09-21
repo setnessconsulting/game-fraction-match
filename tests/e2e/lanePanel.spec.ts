@@ -29,7 +29,7 @@ const EXPECTED_BOARDS: readonly { readonly laneId: string; readonly pairCount: n
 
 test.describe("GAME-187 lane panel — shipped build", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/#debug");
     await expect(page.getByTestId("lane-panel")).toBeVisible();
   });
 

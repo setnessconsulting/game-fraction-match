@@ -39,6 +39,11 @@ export default defineConfig({
         // reviewed — "a 16-card board fits a 320x568 phone" is arithmetic, and arithmetic that is not
         // covered is arithmetic that can quietly stop being true.
         "src/design/**/*.ts",
+        // The GAME-189 session model and focus model are pure and are where the shell's decisions live: which
+        // lane a grade plays, what the warm-up is, where focus goes when the engine moves. The React components
+        // are exercised in the browser instead, because their contract is what a learner can measure.
+        "src/game/session.ts",
+        "src/game/focus.ts",
       ],
       reporter: ["text", "json-summary", "lcov"],
       thresholds: {

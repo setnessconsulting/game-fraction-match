@@ -70,7 +70,7 @@ async function galleryGeometry(page: Page): Promise<MeasuredShape[]> {
 
 test.describe("GAME-186 representation gallery — shipped build", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/#debug");
     await expect(page.getByTestId("representation-gallery")).toBeVisible();
   });
 

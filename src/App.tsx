@@ -1,201 +1,40 @@
 /**
- * Minimal foundation shell (GAME-185) plus the GAME-186 representation gallery.
+ * Application root.
  *
- * This is deliberately NOT the Fraction Match product board. GAME-188 owns visual design, GAME-189
- * owns the semantic board UX, GAME-187 owns lanes and GAME-190 owns explanatory feedback. What this
- * shell proves is narrower and more important:
+ * The default surface is the playable game (GAME-189). The debug shell that each earlier story qualified its
+ * artefact in lives behind `#debug`, so the shipped artifact is the product rather than a gallery, and the
+ * galleries stay reachable for inspection and for their browser qualifications.
  *
- * - the built artifact boots as a standalone document;
- * - React only *projects* engine state and dispatches engine actions;
- * - every visibility and legality decision comes from the engine
- *   (`cardStateOf`, `isCardSelectable`, `applyAction`), never from the shell;
- * - a deck is reproducible from a seed, and the seed comes from outside the engine.
- *
- * Hidden cards render no value at all, not even a hint, so nothing about an unrevealed card leaks
- * into the DOM.
- *
- * The gallery below the board is a GAME-186 debug surface: it renders the representation primitives over
- * engine-authored values, on the smallest shipped card and on a default card, and it is not wired into
- * play. The engine still decides what is visible and what is legal; the gallery only draws.
+ * The view is chosen from the URL hash and follows it, so a direct link either way works and the browser's own
+ * back button behaves. No router dependency is added for this: one flag does not need one.
  */
 
-import { useCallback, useState } from "react";
+import { useEffect, useState } from "react";
 
-import {
-  PRODUCTION_PAIR_COUNT,
-  applyAction,
-  cardStateOf,
-  createDeck,
-  createGameState,
-  isCardSelectable,
-  isGameComplete,
-  remainingPairCount,
-  type GameState,
-} from "./engine";
-import { FOUNDATION_DEBUG_SEED, FOUNDATION_FAMILIES } from "./app/foundationFixture";
-import { RepresentationGallery } from "./app/RepresentationGallery";
-import { LanePanel } from "./app/LanePanel";
-import { DesignPanel } from "./app/DesignPanel";
+import { DebugShell } from "./app/DebugShell";
+import { GameApp } from "./game";
 
-type FoundationSession = {
-  readonly seed: number;
-  readonly state: GameState;
-};
+/** The hash that selects the debug shell. `#debug`, `#/debug` and `#debug/` all work. */
+const DEBUG_HASH = "debug";
 
-/** Deal a fresh session for a seed. This is the only place a deck is created. */
-function createFoundationSession(seed: number): FoundationSession {
-  const deck = createDeck({
-    pairCount: PRODUCTION_PAIR_COUNT,
-    seed,
-    families: FOUNDATION_FAMILIES,
-  });
-  return { seed, state: createGameState(deck) };
+function debugRequested(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.location.hash.replace(/^#\/?/, "").replace(/\/$/, "") === DEBUG_HASH;
 }
 
-/**
- * Sample production entropy in the shell, never in the engine, and hand the number over as data.
- */
-function sampleEntropySeed(): number {
-  const buffer = new Uint32Array(1);
-  crypto.getRandomValues(buffer);
-  return buffer[0] ?? FOUNDATION_DEBUG_SEED;
-}
-
-function phaseCopy(state: GameState): string {
-  if (isGameComplete(state)) return "Board complete.";
-  if (state.pendingComparison !== null) return "Those two are not the same amount. Continue to clear them.";
-  if (state.revealedCardIndexes.length === 1) return "Pick a second card.";
-  return "Pick a card.";
+/** True when the debug shell should render. Exported so a test can pin the rule without a DOM. */
+export function isDebugRoute(hash: string): boolean {
+  return hash.replace(/^#\/?/, "").replace(/\/$/, "") === DEBUG_HASH;
 }
 
 export default function App() {
-  const [session, setSession] = useState<FoundationSession>(() => createFoundationSession(FOUNDATION_DEBUG_SEED));
-  const { state } = session;
+  const [debug, setDebug] = useState(debugRequested);
 
-  const handleSelect = useCallback((cardIndex: number) => {
-    setSession((current) => ({
-      ...current,
-      state: applyAction(current.state, { type: "select-card", cardIndex }).state,
-    }));
+  useEffect(() => {
+    const onHashChange = () => setDebug(debugRequested());
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  const handleAcknowledge = useCallback(() => {
-    setSession((current) => ({
-      ...current,
-      state: applyAction(current.state, { type: "acknowledge-comparison" }).state,
-    }));
-  }, []);
-
-  const handleResetSameSeed = useCallback(() => {
-    setSession((current) => createFoundationSession(current.seed));
-  }, []);
-
-  const handleNewSeed = useCallback(() => {
-    setSession(createFoundationSession(sampleEntropySeed()));
-  }, []);
-
-  return (
-    <main className="page-shell">
-      <div className="shell">
-        <header className="shell-header">
-          <p className="eyebrow">GAME-97 · GAME-185 engine · GAME-186 primitives</p>
-          <h1>Fraction Match</h1>
-          <p className="lede">
-            Deterministic fraction engine, accessible SVG representation primitives and a standalone
-            static artifact. This build is infrastructure — it is not the finished game board.
-          </p>
-        </header>
-
-        <section className="panel" aria-labelledby="foundation-heading">
-          <h2 id="foundation-heading">Foundation status</h2>
-          {/*
-            Plain spans rather than <output>: a debug surface should not create a live region per
-            counter. The single announceable outcome path is the phase status line below.
-          */}
-          <ul className="status-list">
-            <li>Engine: canonical rational values, seeded deck generation, pure state machine</li>
-            <li>
-              Seed: <span className="status-value" data-testid="seed">{session.seed}</span>
-            </li>
-            <li>
-              Cards: <span className="status-value" data-testid="card-count">{state.cards.length}</span>
-            </li>
-            <li>
-              Moves: <span className="status-value" data-testid="moves">{state.moves}</span>
-            </li>
-            <li>
-              Matched pairs:{" "}
-              <span className="status-value" data-testid="matched-pairs">
-                {state.matchedCardIndexes.length / 2}
-              </span>
-            </li>
-            <li>
-              Pairs remaining:{" "}
-              <span className="status-value" data-testid="pairs-remaining">
-                {remainingPairCount(state)}
-              </span>
-            </li>
-            <li>
-              Board: <span className="status-value" data-testid="game-status">{state.status}</span>
-            </li>
-          </ul>
-          <div className="controls">
-            <button type="button" onClick={handleResetSameSeed}>
-              Reset board (same seed)
-            </button>
-            <button type="button" onClick={handleNewSeed}>
-              New seed
-            </button>
-          </div>
-          <p className="status-line" role="status" data-testid="phase">
-            {phaseCopy(state)}
-          </p>
-        </section>
-
-        <section className="panel" aria-labelledby="board-heading">
-          <h2 id="board-heading">Foundation smoke board</h2>
-          <p className="microcopy">
-            Debug surface only. Unstyled buttons prove the engine drives the UI; production card art and
-            board UX belong to GAME-188 and GAME-189. The representation primitives are shown in the
-            gallery below.
-          </p>
-          <ul className="board" data-testid="board">
-            {state.cards.map((card, cardIndex) => {
-              const cardState = cardStateOf(state, cardIndex);
-              return (
-                <li key={card.cardId}>
-                  <button
-                    type="button"
-                    className="card"
-                    data-testid="card"
-                    data-card-state={cardState}
-                    disabled={!isCardSelectable(state, cardIndex)}
-                    onClick={() => handleSelect(cardIndex)}
-                  >
-                    {cardState === "hidden" ? "?" : `${card.form.numerator}/${card.form.denominator}`}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          {state.pendingComparison === null ? null : (
-            <button type="button" className="continue" data-testid="acknowledge" onClick={handleAcknowledge}>
-              Continue
-            </button>
-          )}
-        </section>
-
-        <RepresentationGallery />
-
-        <LanePanel />
-
-        <DesignPanel />
-
-        <footer className="shell-footer">
-          <span>Session-only, memory-only play.</span>
-          <span>No accounts, no cookies, no storage, no telemetry, no gameplay network requests.</span>
-        </footer>
-      </div>
-    </main>
-  );
+  return debug ? <DebugShell /> : <GameApp />;
 }

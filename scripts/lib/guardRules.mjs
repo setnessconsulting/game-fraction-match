@@ -419,6 +419,25 @@ export const PRIVACY_SOURCE_ONLY_RULES = [
     pattern: /\bfetch\s*\(/g,
     message: "game source must not call fetch; static asset loading is the only network requirement",
   },
+  {
+    /*
+     * The host boundary (GAME-189).
+     *
+     * Source-only for the same reason `outbound-fetch` is: the bundled output carries the module loader's own
+     * `postMessage` and Vite's preload runtime, neither of which is a protocol this game introduces. What must
+     * never appear is *our* code reaching for the parent frame or inventing a message channel — the games-site
+     * play toolbar owns navigation and fullscreen, and ending a session returns to this game's own setup.
+     */
+    id: "host-navigation",
+    pattern: /\bwindow\s*\.\s*(?:parent|top)\b|\b(?:parent|top)\s*\.\s*location\b|\bparent\s*\.\s*frames\b/g,
+    message:
+      "the game must not navigate its host; the games-site play toolbar owns the way out, and ending a session returns to setup",
+  },
+  {
+    id: "host-messaging",
+    pattern: /\bpostMessage\b/g,
+    message: "no postMessage protocol is introduced for v1; the game is a self-contained static artifact",
+  },
 ];
 
 /* ------------------------------------------------------------------ *

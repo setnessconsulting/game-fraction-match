@@ -8,8 +8,12 @@ import { expect, test } from "../browserErrorFixture";
  * beneath the same versioned prefix. Testing only `/index.html` would not catch a build that
  * assumes domain-root hosting, so this journey asserts that every HTML/JS/CSS response came from
  * the nested prefix and that the root path the artifact must not depend on does not exist.
+ *
+ * Since GAME-189 the deployed root is the playable game, so this also proves the *game* boots and
+ * responds to input from a versioned base — a nested build that mounted the wrong shell would now
+ * fail here rather than passing on a gallery.
  */
-const EXPECTED_CARD_COUNT = 16;
+const WARM_UP_CARD_COUNT = 8;
 
 test.describe("GAME-185 nested versioned asset base", () => {
   test("loads from the nested prefix with every asset beneath it", async ({ page }) => {
@@ -20,8 +24,8 @@ test.describe("GAME-185 nested versioned asset base", () => {
     expect(response?.status()).toBe(200);
 
     await expect(page).toHaveTitle("Fraction Match");
-    await expect(page.getByRole("heading", { level: 1, name: "Fraction Match" })).toBeVisible();
-    await expect(page.getByTestId("board").getByTestId("card")).toHaveCount(EXPECTED_CARD_COUNT);
+    await expect(page.getByTestId("game-shell")).toBeVisible();
+    await expect(page.getByTestId("game-setup")).toBeVisible();
 
     // Every single response the document produced resolves beneath the versioned prefix. A build
     // that assumed domain-root hosting would emit `/assets/...` and fail here.
@@ -40,11 +44,19 @@ test.describe("GAME-185 nested versioned asset base", () => {
     const response = await page.goto(`${NESTED_BASE_PATH}/index.html`);
     expect(response?.status()).toBe(200);
 
-    await expect(page.getByTestId("board").getByTestId("card")).toHaveCount(EXPECTED_CARD_COUNT);
-    await page.getByTestId("card").nth(0).click();
-    await expect(page.getByTestId("moves")).toHaveText("0");
-    await page.getByTestId("card").nth(1).click();
-    await expect(page.getByTestId("moves")).toHaveText("1");
+    // Grade 4 → its warm-up board. Both steps are deterministic; only the *seed* varies, and nothing
+    // asserted here depends on it.
+    await page.locator('[data-grade-band="grade-4"]').click();
+    await expect(page.getByTestId("game-instruction")).toBeVisible();
+    await page.getByTestId("game-begin").click();
+
+    const cards = page.getByTestId("game-card");
+    await expect(cards).toHaveCount(WARM_UP_CARD_COUNT);
+
+    // The first selection is never a move, which is engine truth rather than a layout accident.
+    await cards.first().click();
+    await expect(cards.first()).toHaveAttribute("data-card-state", "revealed");
+    await expect(page.getByTestId("game-moves")).toHaveText("0");
   });
 
   test("resolves the versioned directory to its index document", async ({ page }) => {

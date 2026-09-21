@@ -30,7 +30,7 @@ function foundationBoard(page: Page) {
 
 test.describe("GAME-185 foundation shell — direct build", () => {
   test("boots the standalone artifact at the domain root", async ({ page }) => {
-    const response = await page.goto("/");
+    const response = await page.goto("/#debug");
     expect(response?.status()).toBe(200);
 
     await expect(page).toHaveTitle("Fraction Match");
@@ -45,7 +45,7 @@ test.describe("GAME-185 foundation shell — direct build", () => {
   });
 
   test("never leaks a hidden card value into the DOM", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/#debug");
 
     const labelValues = await page.getByTestId("card").allInnerTexts();
     expect(labelValues).toHaveLength(EXPECTED_CARD_COUNT);
@@ -54,7 +54,7 @@ test.describe("GAME-185 foundation shell — direct build", () => {
   });
 
   test("counts the first selection as no move and the second as exactly one", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/#debug");
 
     await page.getByTestId("card").nth(0).click();
     await expect(page.getByTestId("card").nth(0)).toHaveAttribute("data-card-state", "revealed");
@@ -81,7 +81,7 @@ test.describe("GAME-185 foundation shell — direct build", () => {
   });
 
   test("replays the identical board from the same seed", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/#debug");
 
     await page.getByTestId("card").nth(0).click();
     await page.getByTestId("card").nth(1).click();
@@ -102,7 +102,7 @@ test.describe("GAME-185 foundation shell — direct build", () => {
   });
 
   test("issues no network request during play after the initial static load", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/#debug");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("board")).toBeVisible();
 
@@ -121,7 +121,7 @@ test.describe("GAME-185 foundation shell — direct build", () => {
   });
 
   test("keeps gameplay state in memory only", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/#debug");
     await page.getByTestId("card").nth(0).click();
     await page.getByTestId("card").nth(1).click();
 
