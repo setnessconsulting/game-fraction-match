@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "codex/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, lint, tests, guards, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      npm_ci: ${{ steps.npm_ci.outcome }}
+      typecheck: ${{ steps.typecheck.outcome }}
+      lint: ${{ steps.lint.outcome }}
+      tests: ${{ steps.tests.outcome }}
+      architecture: ${{ steps.architecture.outcome }}
+      build: ${{ steps.build.outcome }}
+      privacy: ${{ steps.privacy.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - id: npm_ci
+        name: Install from the committed lockfile
+        run: npm ci
+      - id: typecheck
+        name: Typecheck
+        run: npm run typecheck
+      - id: lint
+        name: Lint
+        run: npm run lint
+      - id: tests
+        name: Unit and property tests with coverage
+        run: npm run test:coverage
+      - id: architecture
+        name: Architecture guards (engine purity and engine boundary)
+        run: npm run check:architecture
+      - id: build
+        name: Production build (relative/versioned asset base)
+        run: npm run build
+      - id: privacy
+        name: Privacy surface guard
+        run: npm run check:privacy
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fraction-match-verification-${{ github.sha }}
+          path: |
+            dist/
+            coverage/coverage-summary.json
+            coverage/lcov.info
+          if-no-files-found: warn
+          retention-days: 30
+
+  browser:
+    name: Browser smoke (direct and nested versioned asset base)
+    needs: verify
+    if: needs.verify.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      direct: ${{ steps.direct.outcome }}
+      nested: ${{ steps.nested.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: fraction-match-verification-${{ github.sha }}
+          path: .
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - id: direct
+        name: Direct build smoke
+        run: npm run test:e2e:run
+      - id: nested
+        name: Nested versioned asset-base smoke
+        run: npm run test:host:run
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fraction-match-browser-results-${{ github.sha }}
+          path: |
+            test-results/
+            playwright-report/
+            playwright-report-host/
+          if-no-files-found: warn
+          retention-days: 30

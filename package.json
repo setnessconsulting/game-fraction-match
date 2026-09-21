@@ -1,0 +1,54 @@
+{
+  "name": "game-fraction-match",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Fraction Match — standalone deterministic equivalent-fractions game (GAME-97 / GAME-185).",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "npm run build && npm run test:e2e:run",
+    "test:e2e:run": "playwright test --config=playwright.config.ts",
+    "test:host": "npm run build && npm run test:host:run",
+    "test:host:run": "playwright test --config=playwright.host.config.ts",
+    "serve:nested-host": "node scripts/nested-host-server.mjs",
+    "check:purity": "node scripts/check-engine-purity.mjs",
+    "check:boundary": "node scripts/check-engine-boundary.mjs",
+    "check:architecture": "npm run check:purity && npm run check:boundary",
+    "check:privacy": "node scripts/check-privacy-surface.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run test:coverage && npm run check:architecture && npm run build && npm run check:privacy"
+  },
+  "dependencies": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@eslint/js": "9.39.1",
+    "@playwright/test": "1.62.1",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.1.1",
+    "@vitest/coverage-v8": "4.1.11",
+    "eslint": "9.39.1",
+    "globals": "17.12.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.0",
+    "vite": "8.3.0",
+    "vitest": "4.1.11"
+  },
+  "overrides": {
+    "@puppeteer/browsers": "3.2.2",
+    "tmp": "0.2.7",
+    "uuid": "11.1.1"
+  }
+}
