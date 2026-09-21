@@ -3,13 +3,15 @@
 Standalone browser math game: match two cards that represent the **same amount**, even when the
 symbols look different. Canonical implementation repository for Jira Epic **GAME-97**.
 
-> **This build is the GAME-185 engine, the GAME-186 representation primitives and the GAME-187 lane
-> layer, not the finished Fraction Match experience.** It ships a deterministic fraction engine,
-> accessible SVG representation primitives for all five families, the grade lanes with their checked-in
-> curriculum map, between-board adaptation and bounded session-local review, provenance, architecture
-> guards, CI, and a browser shell with a primitives gallery and a lane panel that prove the standalone
-> artifact boots and that the engine drives the UI. The production card art, board UX, feedback system and
-> session lifecycle are deliberately **not** implemented here.
+> **This build is the GAME-185 engine, the GAME-186 representation primitives, the GAME-187 lane layer
+> and the GAME-188 design system, not the finished Fraction Match experience.** It ships a deterministic
+> fraction engine, accessible SVG representation primitives for all five families, the grade lanes with
+> their checked-in curriculum map, between-board adaptation and bounded session-local review, the
+> production design authority (tokens, the required state inventory, the responsive fit contract and the
+> motion spec), provenance, architecture guards, CI, and a browser shell with a primitives gallery, a lane
+> panel and a design panel that prove the standalone artifact boots and that the engine drives the UI. The
+> production card art, board UX, feedback system and session lifecycle are deliberately **not** implemented
+> here.
 
 ## Status
 
@@ -19,6 +21,7 @@ symbols look different. Canonical implementation repository for Jira Epic **GAME
 | Jira story | GAME-185 — FM-01 — Bootstrap standalone repo and exact deterministic fraction engine |
 | Jira story | GAME-186 — FM-02 — Accessible SVG fraction representation primitives |
 | Jira story | GAME-187 — FM-03 — Standalone grade lanes, representation progression and bounded review |
+| Jira story | GAME-188 — FM-04 — Production visual, responsive and motion design system |
 | Node | 24 (see `.nvmrc` / `.node-version` / `engines.node`) |
 | Runtime dependencies | `react`, `react-dom` — nothing else |
 | Release kind | `static-web` (published by `setnessconsulting/games-site`) |
@@ -85,13 +88,23 @@ src/lanes/             Grade lanes (GAME-187): content as data, validation, plan
   difficulty.ts        The derived difficulty ladder and its one-dimension-per-rung proof.
   adaptation.ts        Between-board adaptation and bounded, session-local review.
 
+src/design/            Production design authority (GAME-188): tokens, the required state inventory, the
+                       responsive fit contract and the motion spec. It imports nothing at all, so its
+                       layout answers are checkable in plain Node.
+  tokens.ts            The palette (inheriting GAME-186's qualified pair) and the contrast floors.
+  states.ts            The 24 required design states with their code-facing names and non-colour channels.
+  responsive.ts        Base viewports, the board fit planner and the zoom/reflow contract.
+  motion.ts            Motion timings, the celebration bounds and reduced-motion parity.
+
 src/App.tsx            Foundation shell: projects engine state, dispatches engine actions.
-src/app/               Foundation debug fixture, the GAME-186 gallery, the GAME-187 lane panel, styles.
+src/app/               Foundation debug fixture, the GAME-186 gallery, the GAME-187 lane panel, the
+                       GAME-188 design panel, styles.
 scripts/               Architecture guards and the nested asset-base harness.
 tests/                 Unit, property, architecture-guard and browser tests.
 docs/provenance/       Legacy baseline provenance record.
 docs/representations/   The GAME-186 representation contract, written for its consumers.
 docs/lanes/            The GAME-187 lane contract and the grades 3-5 curriculum map.
+docs/design/           The GAME-188 design authority (labelled FALLBACK / FIGMA NOT QUALIFIED).
 ```
 
 ### Rational and engine authority
@@ -235,6 +248,33 @@ with value, family and distinct-representation facts stated as `data-*` attribut
 qualification can assert the projection instead of recomputing it. Those fixtures are **neutral examples**
 and carry no standards claim; the reviewed content is the curriculum map.
 
+### Design system (GAME-188)
+
+`src/design/` is the appearance authority: tokens, the required state inventory, the responsive fit contract
+and the motion spec. It is **pure data and pure functions** — it imports nothing at all, not even React — which
+is what lets the central claim be arithmetic instead of a screenshot:
+
+> a 16-card production board fits a 320×568 phone at 100% zoom with no internal scrolling, every card at 68×68
+> CSS px or larger.
+
+That claim is computed by `planBoardLayout`, asserted in `tests/designResponsive.test.ts` across every base
+viewport and zoom level, and then *measured on the rendered board* by `tests/e2e/designSystem.spec.ts`, which
+fails if the implementation disagrees with the plan. The 4px board gap is derived from that budget rather than
+chosen, so a future gap tweak fails in the unit test rather than in a screenshot.
+
+Two inherited values are deliberately **not** the design layer's to move: `--fm-text` and `--fm-surface` are
+the pair GAME-186's 3:1 division-line contrast floor was measured against, and 68px is the box its legibility
+floors were measured at. The design layer restates them, holds itself to them, and fails the build if they
+drift.
+
+Motion is presentation only, structurally: GAME-186's primitives carry no motion at all, and under a
+reduced-motion preference every duration collapses to zero with a byte-identical outcome, so no information
+lives in a transition. Celebration is bounded to 2500ms and skippable within 1000ms.
+
+The authority is the checked-in specification at [`docs/design/DESIGN_SYSTEM.md`](docs/design/DESIGN_SYSTEM.md),
+labelled **`FALLBACK / FIGMA NOT QUALIFIED`**: the story prefers a persistent Figma `fileKey`, no such file
+exists for this project, and no Figma evidence is claimed anywhere in this repository.
+
 ### Seeds and determinism
 
 The engine never reads ambient entropy. Seeds are 32-bit unsigned integers supplied as data. The
@@ -354,7 +394,7 @@ This foundation intentionally stops before the following work; it builds the sea
 | --- | --- | --- |
 | GAME-186 | Accessible SVG representation primitives over these rational values | implemented here — see [`docs/representations/CONTRACT.md`](docs/representations/CONTRACT.md); still not a board, a lane or production card art |
 | GAME-187 | Grade 3/4/5 lanes, denominator catalogues, representation mixes, distractors, progression and review | implemented here — see [`docs/lanes/CONTRACT.md`](docs/lanes/CONTRACT.md) and [`docs/lanes/CURRICULUM_MAP.md`](docs/lanes/CURRICULUM_MAP.md); it is content and rules, not a board, a session UI or production card art |
-| GAME-188 | Production visual/responsive/motion design | any visual design authority (the primitives stay ink-only and static) |
+| GAME-188 | Production visual/responsive/motion design | implemented here — see [`docs/design/DESIGN_SYSTEM.md`](docs/design/DESIGN_SYSTEM.md); the authority is the checked-in fallback, explicitly labelled `FALLBACK / FIGMA NOT QUALIFIED` because no Figma file exists, and it is a contract rather than a board |
 | GAME-189 | Final semantic board UX and the standalone shell | the production board |
 | GAME-190 | Explanatory match/mismatch feedback and bounded game feel | any feedback system or dwell timing |
 | GAME-191 | Bounded session lifecycle and factual summary | session bounds or summary |
@@ -373,8 +413,12 @@ the curriculum map); a review board is a fresh deal of the same lane rather than
 confused value, so the session *reports* whether that value was re-encountered instead of forcing it; a
 lane with 100 in its catalogue cannot offer the number line legibly at any shipped card size, so grade 4
 resolves a hundredth symbolically; and adaptation and review are pure, tested domain logic that no browser
-surface drives yet. Full accessibility and device qualification belongs to GAME-192, and the session
-lifecycle that would exercise adaptation in play belongs to GAME-191.
+surface drives yet. From GAME-188: the design authority is the checked-in fallback and is **not** Figma-backed
+— no Figma file exists for this project and none is claimed — so the design's provenance stays unqualified
+until a real `fileKey` is recorded; 200% zoom is qualified by emulating the halved content viewport rather than
+by driving a browser's own zoom setting; catalog card art and copy are not produced here, because inventing
+placeholder art would pre-empt GAME-194's promotion review. Full accessibility and device qualification belongs
+to GAME-192, and the session lifecycle that would exercise adaptation in play belongs to GAME-191.
 
 ## Provenance
 

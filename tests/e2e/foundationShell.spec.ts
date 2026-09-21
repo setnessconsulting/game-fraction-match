@@ -16,6 +16,18 @@ async function cardLabel(page: Page, index: number): Promise<string> {
   return (await page.getByTestId("card").nth(index).innerText()).trim();
 }
 
+/**
+ * The foundation board, scoped to its own container.
+ *
+ * `data-card-state` is deliberately *shared* vocabulary: GAME-188's design inventory names the same states the
+ * engine produces, and its reference board renders them. A page-wide selector for that attribute would
+ * therefore also match the design panel, so this journey scopes the attribute to the board it is asserting
+ * about rather than relying on being the only board on the page.
+ */
+function foundationBoard(page: Page) {
+  return page.getByTestId("board");
+}
+
 test.describe("GAME-185 foundation shell — direct build", () => {
   test("boots the standalone artifact at the domain root", async ({ page }) => {
     const response = await page.goto("/");
@@ -38,7 +50,7 @@ test.describe("GAME-185 foundation shell — direct build", () => {
     const labelValues = await page.getByTestId("card").allInnerTexts();
     expect(labelValues).toHaveLength(EXPECTED_CARD_COUNT);
     expect(labelValues.map((value) => value.trim())).toEqual(Array(EXPECTED_CARD_COUNT).fill("?"));
-    await expect(page.locator('[data-card-state="hidden"]')).toHaveCount(EXPECTED_CARD_COUNT);
+    await expect(foundationBoard(page).locator('[data-card-state="hidden"]')).toHaveCount(EXPECTED_CARD_COUNT);
   });
 
   test("counts the first selection as no move and the second as exactly one", async ({ page }) => {
@@ -64,7 +76,7 @@ test.describe("GAME-185 foundation shell — direct build", () => {
       await page.getByTestId("acknowledge").click();
       await expect(page.getByTestId("acknowledge")).toHaveCount(0);
       await expect(page.getByTestId("moves")).toHaveText("1");
-      await expect(page.locator('[data-card-state="hidden"]')).toHaveCount(EXPECTED_CARD_COUNT);
+      await expect(foundationBoard(page).locator('[data-card-state="hidden"]')).toHaveCount(EXPECTED_CARD_COUNT);
     }
   });
 
@@ -80,7 +92,7 @@ test.describe("GAME-185 foundation shell — direct build", () => {
 
     await expect(page.getByTestId("moves")).toHaveText("0");
     await expect(page.getByTestId("seed")).toHaveText(seedBefore);
-    await expect(page.locator('[data-card-state="hidden"]')).toHaveCount(EXPECTED_CARD_COUNT);
+    await expect(foundationBoard(page).locator('[data-card-state="hidden"]')).toHaveCount(EXPECTED_CARD_COUNT);
 
     await page.getByTestId("card").nth(0).click();
     await page.getByTestId("card").nth(1).click();
