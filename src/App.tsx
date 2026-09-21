@@ -1,9 +1,9 @@
 /**
- * Minimal foundation shell (GAME-185).
+ * Minimal foundation shell (GAME-185) plus the GAME-186 representation gallery.
  *
  * This is deliberately NOT the Fraction Match product board. GAME-188 owns visual design, GAME-189
- * owns the semantic board UX, GAME-186 owns SVG representation primitives and GAME-190 owns
- * explanatory feedback. What this shell proves is narrower and more important:
+ * owns the semantic board UX, GAME-187 owns lanes and GAME-190 owns explanatory feedback. What this
+ * shell proves is narrower and more important:
  *
  * - the built artifact boots as a standalone document;
  * - React only *projects* engine state and dispatches engine actions;
@@ -13,6 +13,10 @@
  *
  * Hidden cards render no value at all, not even a hint, so nothing about an unrevealed card leaks
  * into the DOM.
+ *
+ * The gallery below the board is a GAME-186 debug surface: it renders the representation primitives over
+ * engine-authored values, on the smallest shipped card and on a default card, and it is not wired into
+ * play. The engine still decides what is visible and what is legal; the gallery only draws.
  */
 
 import { useCallback, useState } from "react";
@@ -29,6 +33,7 @@ import {
   type GameState,
 } from "./engine";
 import { FOUNDATION_DEBUG_SEED, FOUNDATION_FAMILIES } from "./app/foundationFixture";
+import { RepresentationGallery } from "./app/RepresentationGallery";
 
 type FoundationSession = {
   readonly seed: number;
@@ -91,11 +96,11 @@ export default function App() {
     <main className="page-shell">
       <div className="shell">
         <header className="shell-header">
-          <p className="eyebrow">GAME-97 · GAME-185 foundation</p>
+          <p className="eyebrow">GAME-97 · GAME-185 engine · GAME-186 primitives</p>
           <h1>Fraction Match</h1>
           <p className="lede">
-            Deterministic fraction engine and standalone static artifact. This build is
-            infrastructure — it is not the finished game board.
+            Deterministic fraction engine, accessible SVG representation primitives and a standalone
+            static artifact. This build is infrastructure — it is not the finished game board.
           </p>
         </header>
 
@@ -148,8 +153,9 @@ export default function App() {
         <section className="panel" aria-labelledby="board-heading">
           <h2 id="board-heading">Foundation smoke board</h2>
           <p className="microcopy">
-            Debug surface only. Unstyled buttons prove the engine drives the UI; production card art,
-            fraction models and board UX belong to GAME-186, GAME-188 and GAME-189.
+            Debug surface only. Unstyled buttons prove the engine drives the UI; production card art and
+            board UX belong to GAME-188 and GAME-189. The representation primitives are shown in the
+            gallery below.
           </p>
           <ul className="board" data-testid="board">
             {state.cards.map((card, cardIndex) => {
@@ -176,6 +182,8 @@ export default function App() {
             </button>
           )}
         </section>
+
+        <RepresentationGallery />
 
         <footer className="shell-footer">
           <span>Session-only, memory-only play.</span>

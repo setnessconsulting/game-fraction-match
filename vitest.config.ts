@@ -8,12 +8,18 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["tests/**/*.test.ts"],
+    // `.tsx` is allowed so the representation primitives can be rendered and asserted as markup
+    // without a DOM: `react-dom/server` returns the exact projection the browser will receive.
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
     coverage: {
       provider: "v8",
       // Every executable engine module must meet the thresholds below. `src/engine/index.ts` is
       // included so that any logic added to the boundary in future is measured too; today it is a
       // pure re-export module with no executable statements, so v8 reports it as an empty file.
+      //
+      // The GAME-186 representation layer is measured the same way. It is a projection rather than an
+      // authority, but the legibility floors are geometry, and geometry that is not measured is not
+      // guaranteed: the pure modules and the React primitives are both covered here.
       include: [
         "src/engine/index.ts",
         "src/engine/rational.ts",
@@ -21,6 +27,8 @@ export default defineConfig({
         "src/engine/rng.ts",
         "src/engine/deck.ts",
         "src/engine/gameState.ts",
+        "src/representations/**/*.ts",
+        "src/representations/**/*.tsx",
       ],
       reporter: ["text", "json-summary", "lcov"],
       thresholds: {

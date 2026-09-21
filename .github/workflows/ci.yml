@@ -45,7 +45,7 @@ jobs:
         name: Unit and property tests with coverage
         run: npm run test:coverage
       - id: architecture
-        name: Architecture guards (engine purity and engine boundary)
+        name: Architecture guards (engine purity, engine boundary, representation isolation)
         run: npm run check:architecture
       - id: build
         name: Production build (relative/versioned asset base)

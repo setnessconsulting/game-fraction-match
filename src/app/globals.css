@@ -164,3 +164,95 @@ button:focus-visible {
   color: var(--fm-muted);
   font-size: 0.875rem;
 }
+
+/*
+ * GAME-186 representation gallery.
+ *
+ * The card sizes are declared as custom properties so a unit test can prove they still match
+ * `MIN_CARD_SIZE_CSS_PX` and the default card the geometry was qualified against: the legibility floors
+ * only mean anything if the card really is the size the geometry reasoned about.
+ */
+:root {
+  --fm-gallery-min-card-size: 68px;
+  --fm-gallery-default-card-size: 96px;
+}
+
+.panel h3 {
+  margin: 1.25rem 0 0.25rem;
+  font-size: 1rem;
+}
+
+.fm-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fm-surface);
+  border: 1px solid var(--fm-border);
+  border-radius: 0.5rem;
+  color: var(--fm-text);
+}
+
+.fm-card--min {
+  width: var(--fm-gallery-min-card-size);
+  height: var(--fm-gallery-min-card-size);
+}
+
+.fm-card--default {
+  width: var(--fm-gallery-default-card-size);
+  height: var(--fm-gallery-default-card-size);
+}
+
+.gallery-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  margin: 0.5rem 0 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.gallery-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.gallery-row__label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.gallery-note,
+.gallery-warning,
+.gallery-rejections {
+  margin: 0;
+  color: var(--fm-muted);
+  font-size: 0.8125rem;
+}
+
+.gallery-rejections {
+  padding-left: 1.1rem;
+}
+
+.gallery-comparisons {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  margin: 0.5rem 0 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.gallery-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.gallery-refusals {
+  display: grid;
+  gap: 1rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}

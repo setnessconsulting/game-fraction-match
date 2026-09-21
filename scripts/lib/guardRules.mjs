@@ -17,6 +17,21 @@ import { dirname, join } from "node:path";
 export const ENGINE_ROOT = "src/engine";
 export const ENGINE_PUBLIC_BOUNDARY = ENGINE_ROOT;
 
+/**
+ * The representation layer, which must stay a one-way projection of engine values.
+ *
+ * It may read the fields of a fraction value, but it may not import the engine at all — not even for a
+ * type — so the mathematics can never be re-derived, second-guessed or duplicated inside a picture, and
+ * the layer can be extracted into a shared package without moving any mathematical authority.
+ */
+export const REPRESENTATION_ROOT = "src/representations";
+
+/** The one stylesheet the primitives own. Its invariants are guarded as strict source text. */
+export const REPRESENTATION_STYLE_PATH = `${REPRESENTATION_ROOT}/fractionRepresentation.css`;
+
+/** Packages the representation layer may import. React is the only rendering dependency it needs. */
+export const REPRESENTATION_ALLOWED_PACKAGES = ["react", "react-dom"];
+
 /* ------------------------------------------------------------------ *
  * Source stripping
  * ------------------------------------------------------------------ */
@@ -243,6 +258,22 @@ export function isDeepEngineImport(resolvedPath) {
   return resolvedPath.startsWith(`${ENGINE_ROOT}/`);
 }
 
+/**
+ * Whether a resolved path is the engine boundary *or* anything inside it.
+ *
+ * Presentation code is allowed the boundary; the representation layer is allowed neither.
+ */
+export function isEngineImport(resolvedPath) {
+  if (resolvedPath === null) return false;
+  return resolvedPath === ENGINE_ROOT || resolvedPath.startsWith(`${ENGINE_ROOT}/`);
+}
+
+/** Whether a resolved path stays inside the representation layer. */
+export function isRepresentationInternalImport(resolvedPath) {
+  if (resolvedPath === null) return false;
+  return resolvedPath === REPRESENTATION_ROOT || resolvedPath.startsWith(`${REPRESENTATION_ROOT}/`);
+}
+
 /** Whether a resolved path is outside application source (for example repository tooling). */
 export function isOutOfSourceImport(resolvedPath) {
   if (resolvedPath === null) return false;
@@ -340,6 +371,173 @@ export const PRIVACY_SOURCE_ONLY_RULES = [
     message: "game source must not call fetch; static asset loading is the only network requirement",
   },
 ];
+
+/* ------------------------------------------------------------------ *
+ * Representation style invariants
+ * ------------------------------------------------------------------ */
+
+/**
+ * CSS declarations the primitives may never carry, and the only values they may carry.
+ *
+ * A `transform` would move geometry that the legibility floors measured at authored coordinates, and a
+ * transition or animation would let motion change what a learner can read. `none` is therefore the only
+ * permitted value for the two motion properties: the reduced-motion block states the promise explicitly
+ * rather than relying on nothing being declared.
+ */
+export const REPRESENTATION_STYLE_DECLARATION_RULES = [
+  {
+    id: "representation-style-transform",
+    property: "transform",
+    allowed: [],
+    message:
+      "representation geometry must not be transformed; the legibility floors measure the authored box",
+  },
+  {
+    id: "representation-style-transition",
+    property: "transition",
+    allowed: ["none", "none !important"],
+    message: "representation primitives are static; only `transition: none` is permitted",
+  },
+  {
+    id: "representation-style-animation",
+    property: "animation",
+    allowed: ["none", "none !important"],
+    message: "representation primitives are static; only `animation: none` is permitted",
+  },
+];
+
+/**
+ * Selectors whose `font-size` is owned by geometry.
+ *
+ * Symbolic digits and number-line labels are sized from the box so the glyph-height and label-spacing
+ * floors describe the picture. A stylesheet that set `font-size` on either would silently invalidate
+ * both floors.
+ */
+export const REPRESENTATION_STYLE_SIZE_LOCKED_SELECTORS = [".fm-symbol__digit", ".fm-number-line__label"];
+
+/** Structural markers the stylesheet must keep. */
+export const REPRESENTATION_STYLE_REQUIRED_MARKERS = [
+  {
+    id: "representation-style-forced-colors",
+    marker: "forced-colors: active",
+    message: "the primitives must state their forced-colors behaviour explicitly, not rely on the UA",
+  },
+  {
+    id: "representation-style-reduced-motion",
+    marker: "prefers-reduced-motion: reduce",
+    message: "the primitives must state that reduced motion changes no geometry",
+  },
+  {
+    id: "representation-style-sr-only",
+    marker: ".fm-sr-only",
+    message: "the visually hidden text alternative utility must stay available",
+  },
+];
+
+/** Remove `/* ... *\/` comments from CSS, preserving line breaks. */
+export function stripCssComments(source) {
+  let output = "";
+  let index = 0;
+  while (index < source.length) {
+    if (source[index] === "/" && source[index + 1] === "*") {
+      index += 2;
+      output += "  ";
+      while (index < source.length && !(source[index] === "*" && source[index + 1] === "/")) {
+        output += source[index] === "\n" ? "\n" : " ";
+        index += 1;
+      }
+      index += 2;
+      output += "  ";
+      continue;
+    }
+    output += source[index];
+    index += 1;
+  }
+  return output;
+}
+
+/**
+ * Split a stylesheet into selector/declaration blocks.
+ *
+ * The split is deliberately simple: chunks are separated by `}`, and a chunk's declarations are the text
+ * after its last `{`. A nested at-rule therefore collapses into one chunk whose "selector" text carries
+ * the at-rule prelude, which is exactly what the size-lock and declaration checks need and is asserted
+ * directly in `tests/architectureGuards.test.ts`.
+ */
+export function parseCssBlocks(source) {
+  const text = stripCssComments(source);
+  const blocks = [];
+  let chunkStart = 0;
+
+  for (const chunk of text.split("}")) {
+    const braceIndex = chunk.lastIndexOf("{");
+    if (braceIndex !== -1) {
+      const bodyStart = chunkStart + braceIndex + 1;
+      const declarations = [];
+      for (const match of chunk.slice(braceIndex + 1).matchAll(/([-\w]+)\s*:\s*([^;{}]+)/g)) {
+        declarations.push({
+          property: match[1].toLowerCase(),
+          value: match[2].trim(),
+          line: lineOf(text, bodyStart + (match.index ?? 0)),
+        });
+      }
+      blocks.push({
+        selector: chunk.slice(0, braceIndex).trim(),
+        declarations,
+        line: lineOf(text, chunkStart),
+      });
+    }
+    // +1 accounts for the `}` that `split` consumed.
+    chunkStart += chunk.length + 1;
+  }
+
+  return blocks;
+}
+
+/** Every invariant violation in the representation stylesheet, as rule findings. */
+export function findRepresentationStyleViolations(source) {
+  const violations = [];
+
+  for (const block of parseCssBlocks(source)) {
+    const sizeLocked = REPRESENTATION_STYLE_SIZE_LOCKED_SELECTORS.some((selector) => block.selector.includes(selector));
+
+    for (const declaration of block.declarations) {
+      const rule = REPRESENTATION_STYLE_DECLARATION_RULES.find(
+        (candidate) => candidate.property === declaration.property,
+      );
+      if (rule !== undefined && !rule.allowed.includes(declaration.value)) {
+        violations.push({
+          ruleId: rule.id,
+          line: declaration.line,
+          message: rule.message,
+          excerpt: `${declaration.property}: ${declaration.value}`,
+        });
+      }
+      if (sizeLocked && declaration.property === "font-size") {
+        violations.push({
+          ruleId: "representation-style-locked-font-size",
+          line: declaration.line,
+          message:
+            "this selector's font size is owned by geometry; a CSS font size would invalidate the legibility floor",
+          excerpt: `${block.selector} { font-size: ${declaration.value} }`,
+        });
+      }
+    }
+  }
+
+  for (const required of REPRESENTATION_STYLE_REQUIRED_MARKERS) {
+    if (!source.includes(required.marker)) {
+      violations.push({
+        ruleId: required.id,
+        line: 1,
+        message: required.message,
+        excerpt: `missing marker "${required.marker}"`,
+      });
+    }
+  }
+
+  return violations;
+}
 
 /* ------------------------------------------------------------------ *
  * Filesystem helpers
