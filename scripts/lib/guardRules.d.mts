@@ -47,6 +47,8 @@ export const ENGINE_PUBLIC_BOUNDARY: string;
 export const REPRESENTATION_ROOT: string;
 export const REPRESENTATION_STYLE_PATH: string;
 export const REPRESENTATION_ALLOWED_PACKAGES: readonly string[];
+export const LANE_ROOT: string;
+export const LANE_DEEP_ENGINE_SEGMENTS: number;
 
 export function stripComments(source: string): string;
 export function stripCommentsAndStrings(source: string): string;
@@ -59,6 +61,8 @@ export function isDeepEngineImport(resolvedPath: string | null): boolean;
 export function isEngineImport(resolvedPath: string | null): boolean;
 export function isRepresentationInternalImport(resolvedPath: string | null): boolean;
 export function isOutOfSourceImport(resolvedPath: string | null): boolean;
+export function isLaneInternalImport(resolvedPath: string | null): boolean;
+export function isAllowedLaneDependency(resolvedPath: string | null): boolean;
 
 export const ENGINE_AMBIENT_RULES: readonly GuardPatternRule[];
 export const ALLOWED_RUNTIME_DEPENDENCIES: readonly string[];

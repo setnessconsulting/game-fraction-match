@@ -32,6 +32,19 @@ export const REPRESENTATION_STYLE_PATH = `${REPRESENTATION_ROOT}/fractionReprese
 /** Packages the representation layer may import. React is the only rendering dependency it needs. */
 export const REPRESENTATION_ALLOWED_PACKAGES = ["react", "react-dom"];
 
+/**
+ * The lane layer (GAME-187), which turns content into a plan.
+ *
+ * It sits between two authorities it must not replace: the engine chooses the values and GAME-186's
+ * legibility policy chooses the pictures. A lane therefore may import the public engine boundary and the
+ * public representation boundary, and nothing else — not the shell, not repository tooling, and no package
+ * at all, so a lane stays testable in plain Node and cannot smuggle a UI decision into content.
+ */
+export const LANE_ROOT = "src/lanes";
+
+/** Hidden engine internals a lane may never reach: only the boundary module is a public surface. */
+export const LANE_DEEP_ENGINE_SEGMENTS = 1;
+
 /* ------------------------------------------------------------------ *
  * Source stripping
  * ------------------------------------------------------------------ */
@@ -272,6 +285,28 @@ export function isEngineImport(resolvedPath) {
 export function isRepresentationInternalImport(resolvedPath) {
   if (resolvedPath === null) return false;
   return resolvedPath === REPRESENTATION_ROOT || resolvedPath.startsWith(`${REPRESENTATION_ROOT}/`);
+}
+
+/** Whether a resolved path stays inside the lane layer. */
+export function isLaneInternalImport(resolvedPath) {
+  if (resolvedPath === null) return false;
+  return resolvedPath === LANE_ROOT || resolvedPath.startsWith(`${LANE_ROOT}/`);
+}
+
+/**
+ * Whether a resolved path is one of the two public boundaries a lane is allowed to consume.
+ *
+ * `src/engine` and `src/representations` are the boundaries; anything deeper resolves to a path that
+ * starts with `src/engine/` or `src/representations/` and is refused by {@link isDeepEngineImport}
+ * and {@link isRepresentationInternalImport} at the call site.
+ */
+export function isAllowedLaneDependency(resolvedPath) {
+  if (resolvedPath === null) return false;
+  return (
+    resolvedPath === ENGINE_PUBLIC_BOUNDARY ||
+    resolvedPath === REPRESENTATION_ROOT ||
+    isLaneInternalImport(resolvedPath)
+  );
 }
 
 /** Whether a resolved path is outside application source (for example repository tooling). */
