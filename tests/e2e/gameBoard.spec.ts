@@ -15,8 +15,6 @@ import { expect, test } from "../browserErrorFixture";
  */
 
 const WARM_UP_CARD_COUNT = 8;
-const PRODUCTION_CARD_COUNT = 16;
-
 /** Grade 4 publishes the production shape, so its warm-up is 4 pairs and its board is 8. */
 async function startWarmUp(page: Page): Promise<void> {
   await page.locator('[data-grade-band="grade-4"]').click();
@@ -33,6 +31,13 @@ async function boardSignature(page: Page): Promise<string> {
       .map((card) => `${(card as HTMLElement).dataset.cardIndex}:${(card as HTMLElement).dataset.cardState}`)
       .join(","),
   );
+}
+
+/** The board's own card count: the deal is viewport-dependent, so the plan is the authority. */
+async function productionCardCount(page: Page): Promise<number> {
+  const value = await page.getByTestId("game-board").getAttribute("data-card-count");
+  expect(value).not.toBeNull();
+  return Number(value);
 }
 
 async function fractions(page: Page): Promise<readonly string[]> {
@@ -73,14 +78,21 @@ test.describe("GAME-189 board — shipped build", () => {
     await page.getByTestId("game-begin").click();
 
     await expect(page.getByTestId("game-board")).toHaveAttribute("data-board-kind", "production-board");
-    await expect(page.getByTestId("game-card")).toHaveCount(PRODUCTION_CARD_COUNT);
+
+    // The board size follows the viewport: the card keeps its qualified 96px box and the deal shrinks until the
+    // whole board fits, so the count is asserted as a rule rather than as a magic number.
+    const cards = await productionCardCount(page);
+    await expect(page.getByTestId("game-board")).toHaveAttribute("data-card-size", "96");
+    await expect(page.getByTestId("game-board")).toHaveAttribute("data-fits-without-scrolling", "true");
+    await expect(page.getByTestId("game-card")).toHaveCount(cards);
   });
 
   test("never leaks a hidden value through the DOM or an accessible name", async ({ page }) => {
     await startWarmUp(page);
     await page.getByTestId("game-new-board").click();
     await page.getByTestId("game-begin").click();
-    await expect(page.getByTestId("game-card")).toHaveCount(PRODUCTION_CARD_COUNT);
+    const expectedCards = await productionCardCount(page);
+    await expect(page.getByTestId("game-card")).toHaveCount(expectedCards);
 
     const hidden = await page.evaluate(() =>
       Array.from(document.querySelectorAll('[data-testid="game-card"]')).map((card) => ({
@@ -93,7 +105,7 @@ test.describe("GAME-189 board — shipped build", () => {
       })),
     );
 
-    expect(hidden).toHaveLength(PRODUCTION_CARD_COUNT);
+    expect(hidden).toHaveLength(expectedCards);
     for (const card of hidden) {
       expect(card.state).toBe("hidden");
       expect(card.valueVisible).toBe("false");

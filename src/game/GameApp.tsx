@@ -33,7 +33,7 @@ import {
   type SessionStage,
 } from "./session";
 import type { GradeBand } from "../lanes";
-import { Board, nextSeed } from "./Board";
+import { Board, currentViewport, nextSeed } from "./Board";
 
 /** The grade labels. A grade band is an ordering label; the catalogue is what the surface actually states. */
 const GRADE_LABELS: Readonly<Record<GradeBand, string>> = Object.freeze({
@@ -181,7 +181,11 @@ export function GameStage({
   switch (session.stage) {
     case "grade-setup":
       return (
-        <GradeSetup onChoose={(gradeBand) => onIntent({ type: "choose-grade", gradeBand, seed: nextSeed() })} />
+        <GradeSetup
+          onChoose={(gradeBand) =>
+            onIntent({ type: "choose-grade", gradeBand, seed: nextSeed(), viewport: currentViewport() })
+          }
+        />
       );
     case "instruction":
       return (

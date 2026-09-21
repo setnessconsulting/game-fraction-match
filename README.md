@@ -296,12 +296,12 @@ deal, and the warm-up is the same lane re-dealt at the warm-up pair count, so th
 engine/action path. Grade 3 therefore deals 8 cards rather than 16, because that is what its catalogue publishes —
 the shell does not inflate a grade's content to reach a board size.
 
-**The card size is not the design's to choose.** A card is drawn at the box its lane was qualified at and the grid
-reflows columns around it, because the lane's coverage proof was a measurement at that box. That is in direct
-tension with GAME-188's "a 16-card board fits 320×568 at 100% zoom" — a 16-card board at the 96px qualified box
-needs 396px of width, which a 320px or 390px phone cannot give. Both claims are recorded in
-[`docs/game/BOARD.md`](docs/game/BOARD.md); this change keeps every legibility proof intact and lets a phone
-scroll, and the conflict needs an owner decision before GAME-194 promotes anything.
+**The card size is not the design's to choose.** A card is drawn at the box its lane was qualified at, because the
+lane's coverage proof was a measurement at that box. That collides with GAME-188's "a 16-card board fits 320×568 at
+100% zoom": a 16-card board at the 96px qualified box needs 396px of width. The resolution is that **the board size
+gives way, not the card** — a phone deals fewer pairs (4 pairs on a 320×568 phone, the lane's full 8 on a desktop)
+so every legibility proof and the all-cards-visible contract both hold. The board size is decided at deal time and
+recorded in [`docs/game/BOARD.md`](docs/game/BOARD.md).
 
 ### Seeds and determinism
 
@@ -447,9 +447,9 @@ until a real `fileKey` is recorded; 200% zoom is qualified by emulating the halv
 by driving a browser's own zoom setting; catalog card art and copy are not produced here, because inventing
 placeholder art would pre-empt GAME-194's promotion review. From GAME-189: the game is playable, but **the
 GAME-335 iframe fixture is not demonstrated** — GAME-335 is in Ready, not Done, and its games-site host contract
-is its own work; a 16-card board at the qualified 96px card box does not fit the two phone base viewports, so those
-viewports scroll and the whole active board is not simultaneously visible, which is a recorded conflict between
-GAME-188's fit table and GAME-187's coverage box rather than a silent choice; the mismatch surface states the fact
+is its own work; the production board deals a viewport-dependent number of pairs — 4 on a 320×568 phone, the lane's
+full 8 on a desktop — because a card is never shrunk below the box its coverage was proved at, so a phone plays a
+shorter board rather than a smaller picture; the mismatch surface states the fact
 and offers a continue rather than teaching anything, because the explanation belongs to GAME-190; there are no
 session bounds or summary, because those belong to GAME-191; and cross-engine scope is the board only — Chromium,
 Firefox and mobile WebKit run the board journey, while the representation, lane and design qualifications remain

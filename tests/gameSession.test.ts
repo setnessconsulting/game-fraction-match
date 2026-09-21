@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { PRODUCTION_PAIR_COUNT, WARM_UP_PAIR_COUNT, createDeck, createGameState, isGameComplete } from "../src/engine";
+import { planBoardLayout } from "../src/design";
 import { curriculumLanes, laneEquivalenceFamilies } from "../src/lanes";
 import type { GradeBand } from "../src/lanes";
 import {
@@ -11,7 +12,9 @@ import {
   boardPairCount,
   canSelectCard,
   cardStateOfBoard,
+  boardLaneFor,
   createSession,
+  fittingPairCount,
   gradeOptions,
   instructionFor,
   lanesForGrade,
@@ -39,8 +42,23 @@ import {
 
 const SEED = 20_260_921;
 
+/** A desktop viewport: large enough for the full production board at the qualified card box. */
+const DESKTOP = Object.freeze({ width: 1280, height: 800 });
+
+/** A 320x568 phone: the smallest base viewport, and the one where board size has to give way. */
+const PHONE_SMALL = Object.freeze({ width: 320, height: 568 });
+
 function sessionFor(gradeBand: "grade-3" | "grade-4" | "grade-5", seed = SEED): GameSession {
-  return applyIntent(createSession(), { type: "choose-grade", gradeBand, seed });
+  return createdFor(gradeBand, DESKTOP, seed);
+}
+
+/** Choose a grade at a given viewport: that choice is what decides the board sizes that follow. */
+function createdFor(
+  gradeBand: "grade-3" | "grade-4" | "grade-5",
+  viewport: { readonly width: number; readonly height: number },
+  seed = SEED,
+): GameSession {
+  return applyIntent(createSession(), { type: "choose-grade", gradeBand, seed, viewport });
 }
 
 function started(gradeBand: "grade-3" | "grade-4" | "grade-5", seed = SEED): GameSession {
@@ -225,14 +243,14 @@ describe("the stage machine", () => {
 
   it("toggles between the warm-up and the production board, each behind an instruction", () => {
     const completed = playBoardToCompletion(started("grade-4"));
-    const next = applyIntent(completed, { type: "next-board", seed: SEED + 2 });
+    const next = applyIntent(completed, { type: "next-board", seed: SEED + 2, viewport: DESKTOP });
     expect(next.stage).toBe("instruction");
     expect(next.board?.kind).toBe("production-board");
     expect(next.board?.plan.cards).toHaveLength(PRODUCTION_PAIR_COUNT * 2);
 
     const back = applyIntent(
       playBoardToCompletion(applyIntent(next, { type: "begin-board" })),
-      { type: "next-board", seed: SEED + 3 },
+      { type: "next-board", seed: SEED + 3, viewport: DESKTOP },
     );
     expect(back.board?.kind).toBe("warm-up");
   });
@@ -270,7 +288,7 @@ describe("the stage machine", () => {
     expect(applyIntent(setup, { type: "select-card", cardIndex: 0 })).toBe(setup);
     expect(applyIntent(setup, { type: "acknowledge-comparison" })).toBe(setup);
     expect(applyIntent(setup, { type: "reset-board" })).toBe(setup);
-    expect(applyIntent(setup, { type: "next-board", seed: 1 })).toBe(setup);
+    expect(applyIntent(setup, { type: "next-board", seed: 1, viewport: DESKTOP })).toBe(setup);
 
     const instruction = sessionFor("grade-4");
     expect(applyIntent(instruction, { type: "select-card", cardIndex: 0 })).toBe(instruction);
@@ -343,7 +361,7 @@ describe("the stage machine", () => {
       { type: "select-card", cardIndex: 0 },
       { type: "acknowledge-comparison" },
       { type: "reset-board" },
-      { type: "next-board", seed: 7 },
+      { type: "next-board", seed: 7, viewport: DESKTOP },
       { type: "end-session" },
     ];
     const playing = started("grade-4");
@@ -432,7 +450,7 @@ describe("what a card is allowed to show", () => {
     // hiding is the point: `next-board` deals the production board.
     const session = started("grade-4");
     const production = applyIntent(
-      applyIntent(session, { type: "next-board", seed: SEED }),
+      applyIntent(session, { type: "next-board", seed: SEED, viewport: DESKTOP }),
       { type: "begin-board" },
     );
     expect(production.board!.kind).toBe("production-board");
@@ -446,7 +464,7 @@ describe("what a card is allowed to show", () => {
   it("shows every value on the warm-up while still withholding an on-reveal label", () => {
     const lane = { ...productionLaneFor("grade-4"), labelVisibility: "on-reveal" as const };
     const board = planBoard("warm-up", lane, SEED);
-    const session = applyIntent(createSession(), { type: "choose-grade", gradeBand: "grade-4", seed: SEED });
+    const session = applyIntent(createSession(), { type: "choose-grade", gradeBand: "grade-4", seed: SEED, viewport: DESKTOP });
     const withLane: GameSession = { ...session, board };
 
     expect(valueVisibilityFor(withLane, "hidden").valueVisible).toBe(true);
@@ -457,7 +475,7 @@ describe("what a card is allowed to show", () => {
   it("never states a label on a lane that asked for none", () => {
     const lane = { ...productionLaneFor("grade-4"), labelVisibility: "never" as const };
     const board = planBoard("warm-up", lane, SEED);
-    const session = applyIntent(createSession(), { type: "choose-grade", gradeBand: "grade-4", seed: SEED });
+    const session = applyIntent(createSession(), { type: "choose-grade", gradeBand: "grade-4", seed: SEED, viewport: DESKTOP });
     const withLane: GameSession = { ...session, board };
 
     expect(valueVisibilityFor(withLane, "hidden").labelVisible).toBe(false);
@@ -492,5 +510,78 @@ describe("the engine stays the authority", () => {
     const board = planBoard("production-board", lane, SEED);
     const expected = createDeck({ pairCount: lane.pairCount, seed: SEED, families: laneEquivalenceFamilies(lane) });
     expect(board.plan.deck.cards.map((card) => card.cardId)).toEqual(expected.cards.map((card) => card.cardId));
+  });
+});
+
+describe("the board size gives way before the card does", () => {
+  function layoutAt(session: GameSession, viewport: { readonly width: number; readonly height: number }) {
+    const board = session.board!;
+    return planBoardLayout({
+      viewport,
+      cardCount: board.plan.cards.length,
+      fixedCardCssPx: board.lane.cardBox.width,
+    });
+  }
+
+  it("deals the lane's own size where there is room for it", () => {
+    for (const gradeBand of gradeOptions()) {
+      const lane = productionLaneFor(gradeBand);
+      expect(fittingPairCount(lane, DESKTOP), gradeBand).toBe(lane.pairCount);
+    }
+  });
+
+  it("deals fewer pairs on a phone rather than a smaller card", () => {
+    const lane = productionLaneFor("grade-4");
+    const pairs = fittingPairCount(lane, PHONE_SMALL);
+
+    expect(pairs).toBeLessThan(lane.pairCount);
+    expect(pairs).toBeGreaterThanOrEqual(2);
+
+    // The resolution this story chose: the card keeps its qualified box and the board gives way.
+    const resized = boardLaneFor(lane, "production-board", PHONE_SMALL);
+    expect(resized.pairCount).toBe(pairs);
+    expect(resized.cardBox).toEqual(lane.cardBox);
+    expect(resized.denominatorCatalogue).toBe(lane.denominatorCatalogue);
+  });
+
+  it("leaves the warm-up alone, because it already fits every base viewport", () => {
+    for (const gradeBand of gradeOptions()) {
+      const lane = productionLaneFor(gradeBand);
+      expect(boardLaneFor(lane, "warm-up", PHONE_SMALL)).toEqual(warmUpLaneFor(lane));
+      expect(boardLaneFor(lane, "warm-up", DESKTOP)).toEqual(warmUpLaneFor(lane));
+    }
+  });
+
+  it("fits the dealt production board at the smallest base viewport, for every grade", () => {
+    for (const gradeBand of gradeOptions()) {
+      const session = applyIntent(createdFor(gradeBand, PHONE_SMALL), {
+        type: "next-board",
+        seed: SEED,
+        viewport: PHONE_SMALL,
+      });
+      const layout = layoutAt(session, PHONE_SMALL);
+
+      expect(session.board!.kind, gradeBand).toBe("production-board");
+      expect(layout.problems, gradeBand).toEqual([]);
+      expect(layout.fitsWithoutScrolling, gradeBand + " must show the whole board at 320x568").toBe(true);
+      expect(layout.cardCssPx, gradeBand).toBe(session.board!.lane.cardBox.width);
+    }
+  });
+
+  it("deals a smaller production board on a phone than on a desktop", () => {
+    const phone = applyIntent(createdFor("grade-4", PHONE_SMALL), {
+      type: "next-board",
+      seed: SEED,
+      viewport: PHONE_SMALL,
+    });
+    const desktop = applyIntent(createdFor("grade-4", DESKTOP), {
+      type: "next-board",
+      seed: SEED,
+      viewport: DESKTOP,
+    });
+
+    expect(phone.board!.plan.cards.length).toBeLessThan(desktop.board!.plan.cards.length);
+    expect(desktop.board!.plan.cards).toHaveLength(PRODUCTION_PAIR_COUNT * 2);
+    expect(desktop.board!.lane.cardBox).toEqual(phone.board!.lane.cardBox);
   });
 });

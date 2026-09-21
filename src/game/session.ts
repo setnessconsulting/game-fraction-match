@@ -27,6 +27,7 @@
  */
 
 import {
+  MIN_PAIR_COUNT,
   PRODUCTION_PAIR_COUNT,
   WARM_UP_PAIR_COUNT,
   applyAction,
@@ -39,6 +40,7 @@ import {
   type GameAction,
   type GameState,
 } from "../engine";
+import { planBoardLayout, type Viewport } from "../design";
 import {
   GRADE_BANDS,
   curriculumLanes,
@@ -95,12 +97,18 @@ export type GameSession = {
 
 /** The typed intents the shell emits. Every one of them is caused by a learner action. */
 export type GameIntent =
-  | { readonly type: "choose-grade"; readonly gradeBand: GradeBand; readonly seed: number }
+  | {
+      readonly type: "choose-grade";
+      readonly gradeBand: GradeBand;
+      readonly seed: number;
+      /** The viewport at deal time. A presentation fact the shell samples and hands over, like the seed. */
+      readonly viewport: Viewport;
+    }
   | { readonly type: "begin-board" }
   | { readonly type: "select-card"; readonly cardIndex: number }
   | { readonly type: "acknowledge-comparison" }
   | { readonly type: "reset-board" }
-  | { readonly type: "next-board"; readonly seed: number }
+  | { readonly type: "next-board"; readonly seed: number; readonly viewport: Viewport }
   | { readonly type: "end-session" };
 
 /** The starting session: nothing chosen, nothing dealt. */
@@ -148,13 +156,47 @@ export function productionLaneFor(gradeBand: GradeBand): LaneConfig {
  * silently dealt as something else.
  */
 export function warmUpLaneFor(productionLane: LaneConfig): LaneConfig {
-  const pairCount = Math.min(WARM_UP_PAIR_COUNT, productionLane.pairCount);
+  return resizeLane(productionLane, Math.min(WARM_UP_PAIR_COUNT, productionLane.pairCount), "warm-up");
+}
+
+/** Re-deal a lane at a different size, changing only identity and size. */
+function resizeLane(lane: LaneConfig, pairCount: number, kind: BoardKind): LaneConfig {
+  const label = kind === "warm-up" ? "warm-up" : "board";
   return Object.freeze({
-    ...productionLane,
-    laneId: `${productionLane.laneId}-warm-up`,
-    title: `${productionLane.title} — warm-up`,
+    ...lane,
+    laneId: `${lane.laneId}-${label}`,
+    title: `${lane.title} — ${label}`,
     pairCount,
   });
+}
+
+/**
+ * The largest board this lane can deal while every card stays visible at once.
+ *
+ * A card is drawn at the box its lane was qualified at, so the board cannot shrink to fit a phone; the *board
+ * size* gives way instead. Walking down from the lane's own pair count finds the largest deal whose grid fits the
+ * viewport with no internal scrolling at the qualified box, which is the resolution of the conflict between
+ * GAME-188's fit contract and GAME-187's coverage box: neither is weakened.
+ *
+ * The engine's own minimum is the floor, so a viewport that cannot host even that is a layout problem reported
+ * elsewhere rather than an empty board.
+ */
+export function fittingPairCount(lane: LaneConfig, viewport: Viewport): number {
+  for (let pairs = lane.pairCount; pairs > MIN_PAIR_COUNT; pairs -= 1) {
+    const layout = planBoardLayout({
+      viewport,
+      cardCount: pairs * 2,
+      fixedCardCssPx: lane.cardBox.width,
+    });
+    if (layout.fitsWithoutScrolling && layout.problems.length === 0) return pairs;
+  }
+  return MIN_PAIR_COUNT;
+}
+
+/** The lane as one board kind deals it: the warm-up is smaller, the production board as large as fits. */
+export function boardLaneFor(lane: LaneConfig, kind: BoardKind, viewport: Viewport): LaneConfig {
+  if (kind === "warm-up") return warmUpLaneFor(lane);
+  return resizeLane(lane, fittingPairCount(lane, viewport), kind);
 }
 
 /** Why a warm-up lane could not be dealt, in the lane layer's own terms. Empty means it can. */
@@ -306,13 +348,12 @@ export function applyIntent(session: GameSession, intent: GameIntent): GameSessi
   switch (intent.type) {
     case "choose-grade": {
       const productionLane = productionLaneFor(intent.gradeBand);
-      const next = dealInto(
+      return dealInto(
         Object.freeze({ ...session, gradeBand: intent.gradeBand, completedBoards: 0 }),
         "warm-up",
-        warmUpLaneFor(productionLane),
+        boardLaneFor(productionLane, "warm-up", intent.viewport),
         intent.seed,
       );
-      return next;
     }
 
     case "begin-board":
@@ -341,10 +382,7 @@ export function applyIntent(session: GameSession, intent: GameIntent): GameSessi
       const gradeBand = session.gradeBand;
       if (gradeBand === null) return session;
       const nextKind: BoardKind = session.board?.kind === "warm-up" ? "production-board" : "warm-up";
-      const lane =
-        nextKind === "warm-up"
-          ? warmUpLaneFor(productionLaneFor(gradeBand))
-          : productionLaneFor(gradeBand);
+      const lane = boardLaneFor(productionLaneFor(gradeBand), nextKind, intent.viewport);
       return dealInto(session, nextKind, lane, intent.seed);
     }
 

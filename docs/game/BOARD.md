@@ -62,27 +62,32 @@ made against. Shrinking the picture to fit a phone would silently invalidate tha
 by measuring geometry at that box, and a smaller box is a different measurement. So the board pins the size
 (`planBoardLayout({ fixedCardCssPx: lane.cardBox.width })`) and only the column count is responsive.
 
-### Recorded conflict: this does not satisfy GAME-188's "fits at every base viewport"
+### The conflict, and how it was resolved
 
 GAME-188 established that a 16-card board fits a 320×568 phone at 100% zoom with no internal scrolling, with cards
 at or above the 68px floor. That was proved with the design's own minimum card size.
 
-A **16-card board at the qualified 96px box needs at least 396px of width** (4 × 96 + 3 × 4), and 396px of height.
-The 320×568 and 390×844 base viewports cannot host it at the qualified size, so on those viewports the page
-scrolls vertically and the *whole active board is not simultaneously visible*. On 768×1024 and 1280×800 it fits.
+A **16-card board at the qualified 96px box needs at least 396px of width** (4 × 96 + 3 × 4) and 396px of height,
+so the 320×568 and 390×844 base viewports cannot host it at the qualified size. Shrinking the card to 68px would
+satisfy GAME-188's fit table and break GAME-187's coverage proof — at that box grade 4's visual families fall below
+the partition floor and its catalogue collapses to symbolic.
 
-The two contracts cannot both hold, and neither is wrong:
+**Resolution: the board size gives way, not the card.** `fittingPairCount` walks down from the lane's own pair
+count to the largest deal whose grid fits the viewport with no internal scrolling at the qualified box, and
+`boardLaneFor` re-deals that lane. Both contracts then hold exactly as written:
 
-- shrinking the card to 68px would satisfy GAME-188's fit table and break GAME-187's coverage proof;
-- pinning the card at 96px keeps every legibility proof intact and means a phone scrolls.
+- every card keeps its qualified box, so every legibility proof is intact;
+- the whole active board is visible at once, so GAME-188's fit contract holds;
+- on a 320×568 phone the production board is 4 pairs (8 cards: 2 columns × 4 rows = 196×396, comfortably inside
+  the 286×446 available); on a desktop it is the lane's full 8 pairs.
 
-This change takes the second, because a legibility proof is a measurement and a fit table is a layout, and it is
-recorded here rather than resolved silently. **It needs an owner decision before GAME-194 promotes anything**:
-either the qualified card box becomes viewport-dependent (which means re-qualifying coverage at that box, a
-GAME-186/187 content change), or the phone boards scroll by design (a GAME-188/189 layout change).
+The trade is board length on small viewports, which is a product decision the owner made explicitly rather than a
+side effect. The warm-up is unaffected, because it already fits every base viewport.
 
-The horizontal invariant holds everywhere regardless: the board never overflows its own container at any
-viewport or zoom.
+The board size is therefore decided at **deal time** from the viewport then in force, and it is part of the board's
+configuration: a board in play never changes size, so rotating a phone reflows the columns and never re-deals. The
+horizontal invariant holds everywhere regardless: the board never overflows its own container at any viewport or
+zoom.
 
 ## 4. Focus is derived, then handed over
 

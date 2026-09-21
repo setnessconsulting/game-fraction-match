@@ -20,7 +20,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { planBoardLayout, type BoardLayout } from "../design";
+import { planBoardLayout, type BoardLayout, type Viewport } from "../design";
 import { RepresentationByFamily, accessibilityLabelFor } from "../representations";
 import {
   boardCardsInEngineOrder,
@@ -252,11 +252,19 @@ export function Board({
           Reset board
         </button>
         {complete ? (
-          <button type="button" data-testid="game-next-board" onClick={() => onIntent({ type: "next-board", seed: nextSeed() })}>
+          <button
+            type="button"
+            data-testid="game-next-board"
+            onClick={() => onIntent({ type: "next-board", seed: nextSeed(), viewport: currentViewport() })}
+          >
             Next board
           </button>
         ) : (
-          <button type="button" data-testid="game-new-board" onClick={() => onIntent({ type: "next-board", seed: nextSeed() })}>
+          <button
+            type="button"
+            data-testid="game-new-board"
+            onClick={() => onIntent({ type: "next-board", seed: nextSeed(), viewport: currentViewport() })}
+          >
             New board
           </button>
         )}
@@ -285,4 +293,16 @@ export function nextSeed(): number {
   const buffer = new Uint32Array(1);
   crypto.getRandomValues(buffer);
   return buffer[0] ?? 1;
+}
+
+/**
+ * The viewport as the shell sees it, handed to the session model as data.
+ *
+ * The session model is pure and cannot read a window, and the *board size* depends on how much room there is: a
+ * card is drawn at its qualified box, so a smaller viewport deals fewer pairs rather than a smaller picture.
+ * Sampling here keeps that decision in the pure model while the reading stays where reading is allowed.
+ */
+export function currentViewport(): Viewport {
+  if (typeof window === "undefined") return { width: 1280, height: 800 };
+  return { width: window.innerWidth, height: window.innerHeight };
 }
