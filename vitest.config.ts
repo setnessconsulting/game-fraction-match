@@ -44,6 +44,9 @@ export default defineConfig({
         // are exercised in the browser instead, because their contract is what a learner can measure.
         "src/game/session.ts",
         "src/game/focus.ts",
+        // The GAME-190 feedback module is the copy contract: which class a pair belongs to, what each explanation
+        // says, and how long a mismatch stays on screen. All three are claims a test can hold it to.
+        "src/game/feedback.ts",
       ],
       reporter: ["text", "json-summary", "lcov"],
       thresholds: {

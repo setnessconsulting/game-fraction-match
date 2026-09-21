@@ -667,3 +667,69 @@ button:focus-visible {
 .game-board .fm-board__explanation p {
   margin: 0 0 0.5rem;
 }
+
+/*
+ * GAME-190 explanatory feedback.
+ *
+ * The motion here is GAME-188's own: one short transition from the comparison and match-confirmation steps, on the
+ * feedback surfaces only. Nothing that carries information is animated — the mismatch explanation is present text
+ * from the first frame, the continue control is present but disabled until the inspection window allows it, and
+ * the shared strip is laid out rather than revealed. So the reduced-motion block below removes decoration and
+ * leaves every state, every word and every affordance exactly where it was.
+ */
+.game-feedback,
+.game-strip {
+  transition: opacity 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.game-feedback__line {
+  margin: 0 0 0.35rem;
+  font-weight: 600;
+}
+
+/*
+ * The holding state of the inspection window. `disabled` is the real signal — a learner using a screen reader is
+ * told the control is unavailable — and the dashed boundary is the non-colour reinforcement of the same fact.
+ */
+.game-feedback[data-inspection="holding"] button {
+  border-style: dashed;
+  border-color: var(--fm-border-strong);
+}
+
+.game-strip {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--fm-surface);
+  border: 1px solid var(--fm-border-strong);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.game-strip__forms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin: 0.5rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.game-strip__side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.game-strip__card {
+  background: var(--fm-surface-raised);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-feedback,
+  .game-strip {
+    transition: none !important;
+    transform: none !important;
+  }
+}
