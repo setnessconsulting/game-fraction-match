@@ -101,26 +101,35 @@ export default function App() {
 
         <section className="panel" aria-labelledby="foundation-heading">
           <h2 id="foundation-heading">Foundation status</h2>
+          {/*
+            Plain spans rather than <output>: a debug surface should not create a live region per
+            counter. The single announceable outcome path is the phase status line below.
+          */}
           <ul className="status-list">
             <li>Engine: canonical rational values, seeded deck generation, pure state machine</li>
             <li>
-              Seed: <output data-testid="seed">{session.seed}</output>
+              Seed: <span className="status-value" data-testid="seed">{session.seed}</span>
             </li>
             <li>
-              Cards: <output data-testid="card-count">{state.cards.length}</output>
+              Cards: <span className="status-value" data-testid="card-count">{state.cards.length}</span>
             </li>
             <li>
-              Moves: <output data-testid="moves">{state.moves}</output>
+              Moves: <span className="status-value" data-testid="moves">{state.moves}</span>
             </li>
             <li>
               Matched pairs:{" "}
-              <output data-testid="matched-pairs">{state.matchedCardIndexes.length / 2}</output>
+              <span className="status-value" data-testid="matched-pairs">
+                {state.matchedCardIndexes.length / 2}
+              </span>
             </li>
             <li>
-              Pairs remaining: <output data-testid="pairs-remaining">{remainingPairCount(state)}</output>
+              Pairs remaining:{" "}
+              <span className="status-value" data-testid="pairs-remaining">
+                {remainingPairCount(state)}
+              </span>
             </li>
             <li>
-              Board: <output data-testid="game-status">{state.status}</output>
+              Board: <span className="status-value" data-testid="game-status">{state.status}</span>
             </li>
           </ul>
           <div className="controls">

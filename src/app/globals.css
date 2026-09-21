@@ -75,7 +75,7 @@ h2 {
   color: var(--fm-muted);
 }
 
-.status-list output {
+.status-value {
   color: var(--fm-text);
   font-variant-numeric: tabular-nums;
 }
