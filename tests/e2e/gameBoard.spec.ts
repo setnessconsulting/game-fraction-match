@@ -323,7 +323,8 @@ test.describe("GAME-189 board — host boundary", () => {
     const urlBefore = page.url();
 
     await page.getByTestId("game-end-session").click();
-    await expect(page.getByTestId("game-setup")).toBeVisible();
+    // Ending reports the session (GAME-191) rather than throwing the learner back to setup.
+    await expect(page.getByTestId("game-summary")).toBeVisible();
     expect(page.url()).toBe(urlBefore);
   });
 });

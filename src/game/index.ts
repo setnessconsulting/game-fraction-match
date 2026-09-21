@@ -81,5 +81,35 @@ export type {
 export { useInspectionWindow, useMotionPreference } from "./useInspectionWindow";
 export type { InspectionWindow } from "./useInspectionWindow";
 
+export {
+  HARD_ACTIVE_MS,
+  HARD_PRODUCTION_BOARDS,
+  IDLE_OFFER_AFTER_MS,
+  SOFT_ACTIVE_MS,
+  SOFT_PRODUCTION_BOARDS,
+  activeTimeAfterInput,
+  activeTimeAfterPhase,
+  activeTimeAfterTick,
+  activeTimeAfterVisibility,
+  boundsFor,
+  coachingLineFor,
+  createActiveTimeAccount,
+  dominantMismatchClass,
+  emptySessionFacts,
+  idleMs,
+  idleOfferDue,
+  summaryFor,
+} from "./sessionBounds";
+export type {
+  ActiveTimeAccount,
+  SessionBounds,
+  SessionEvidence,
+  SessionEvidenceFacts,
+  SessionSummary,
+} from "./sessionBounds";
+
+export { TICK_MS, useSessionClock } from "./useSessionClock";
+export type { SessionClock } from "./useSessionClock";
+
 export { Board, currentViewport, useBoardLayout } from "./Board";
-export { BoardErrorBoundary, CalmRecovery, GameApp, GameStage } from "./GameApp";
+export { BoardErrorBoundary, CalmRecovery, GameApp, GameStage, SessionSummaryPanel } from "./GameApp";

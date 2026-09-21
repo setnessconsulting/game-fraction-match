@@ -104,6 +104,35 @@ the two amounts need to be looked at, not an animation, so a reduced-motion pref
 | Mastery, level, proficiency or placement claims | absent — no such concept exists anywhere in the game |
 | Audio or remote telemetry dependency | absent — silence-first v1, and the privacy guard refuses network markers |
 
+## GAME-191 session-arc copy
+
+The session arc reports and offers; it never judges. Every string below is a fact about this session or an
+invitation, and none of them can be lost by ignoring them.
+
+| Surface | String | Notes |
+| --- | --- | --- |
+| Summary heading | `This session` | |
+| Summary note | `Facts from this session only. Nothing is saved, so there is nothing to compare it to.` | says plainly why there is no comparison available |
+| Summary facts | `Boards finished: {n}`, `Pairs matched: {n}`, `Moves: {n}`, `Forms practised: {list\|none yet}`, `Pairs that did not match: {n}` | every line is a count of something observed |
+| Coaching line | `No pairs finished yet this session.` | |
+| Coaching line | `Every pair you tried this session matched.` | |
+| Coaching line | `Most pairs that did not match shared a top number.` | |
+| Coaching line | `Most pairs that did not match shared a bottom number.` | |
+| Coaching line | `Most pairs that did not match shared neither number.` | |
+| Coaching line | `Some pairs did not match.` | the fallback when no class dominates and none was counted separately |
+| Summary actions | `Play another session`, `Change grade` | identical styling, identical weight; neither is the "right" answer |
+| Soft prompt heading | `Good place to stop` | a question, never a countdown |
+| Soft prompt body | `{reasons}. Carry on, or finish here.` | names which bound was reached — `2 boards finished` and/or `181 seconds of play` |
+| Soft prompt actions | `Keep playing`, `Finish session` | |
+| Idle offer heading | `Still there?` | |
+| Idle offer body | `Take a break, or finish here. Nothing is lost either way.` | |
+| Idle offer actions | `Keep playing`, `Finish session` | |
+
+**Not present anywhere in the arc:** percentages, scores, levels, streaks, personal bests, "improvement", grade
+promotion, or any comparison with another session or another learner. `tests/gameSessionBounds.test.ts` refuses
+mastery and performance vocabulary by regex across every summary shape, and refuses percentages outright.
+`tests/e2e/gameSession.spec.ts` repeats the check on the rendered summary.
+
 ## How this register is kept honest
 
 - `tests/gameFeedback.test.ts` holds every class to the word ceiling and to the shame regex, and asserts the copy

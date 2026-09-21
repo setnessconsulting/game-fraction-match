@@ -267,7 +267,7 @@ describe("the stage machine", () => {
     expect(reset.state?.moves).toBe(0);
   });
 
-  it("returns to setup on end-session, from any stage", () => {
+  it("reports the session on end-session instead of discarding it", () => {
     const stages: readonly GameSession[] = [
       createSession(),
       sessionFor("grade-5"),
@@ -276,9 +276,16 @@ describe("the stage machine", () => {
     ];
     for (const session of stages) {
       const ended = applyIntent(session, { type: "end-session" });
-      expect(ended.stage, session.stage).toBe("grade-setup");
+      // Setup has no session to report, so ending from there is a no-op rather than an empty summary.
+      if (session.stage === "grade-setup") {
+        expect(ended).toBe(session);
+        continue;
+      }
+      expect(ended.stage, session.stage).toBe("session-summary");
+      // The summary is a projection of the session's facts, so the board and the live engine state are gone.
       expect(ended.board).toBeNull();
       expect(ended.state).toBeNull();
+      expect(ended.tally).toEqual(session.tally);
     }
   });
 
@@ -350,6 +357,7 @@ describe("the stage machine", () => {
       "instruction",
       "board",
       "board-complete",
+      "session-summary",
       "calm-recovery",
     ]);
     expect([...BOARD_KINDS]).toEqual(["warm-up", "production-board"]);

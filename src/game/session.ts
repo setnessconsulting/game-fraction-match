@@ -41,6 +41,9 @@ import {
   type GameState,
 } from "../engine";
 import { planBoardLayout, type Viewport } from "../design";
+import { REPRESENTATION_FAMILIES } from "../representations";
+import { classifyMismatch } from "./feedback";
+import { emptySessionFacts, type SessionEvidenceFacts } from "./sessionBounds";
 import {
   GRADE_BANDS,
   curriculumLanes,
@@ -53,12 +56,13 @@ import {
   type LanePlan,
 } from "../lanes";
 
-/** The stages of the shell. GAME-191 extends the arc; this story owns the playable middle. */
+/** The stages of the shell. GAME-191 owns the summary at the end of the arc. */
 export const SESSION_STAGES = Object.freeze([
   "grade-setup",
   "instruction",
   "board",
   "board-complete",
+  "session-summary",
   "calm-recovery",
 ] as const);
 export type SessionStage = (typeof SESSION_STAGES)[number];
@@ -93,6 +97,11 @@ export type GameSession = {
   readonly state: GameState | null;
   /** Boards finished in this session. Facts only: no score, no streak, no mastery. */
   readonly completedBoards: number;
+  /**
+   * Everything the session has observed, accumulated from engine transitions rather than from a component's
+   * bookkeeping. The summary is a projection of this and nothing else.
+   */
+  readonly tally: SessionEvidenceFacts;
 };
 
 /** The typed intents the shell emits. Every one of them is caused by a learner action. */
@@ -109,9 +118,13 @@ export type GameIntent =
   | { readonly type: "acknowledge-comparison" }
   | { readonly type: "reset-board" }
   | { readonly type: "next-board"; readonly seed: number; readonly viewport: Viewport }
-  | { readonly type: "end-session" };
+  | { readonly type: "end-session" }
+  /** From the summary: another session at the same grade. Equal weight with `change-grade`. */
+  | { readonly type: "play-again"; readonly seed: number }
+  /** From the summary: back to setup. Equal weight with `play-again`. */
+  | { readonly type: "change-grade" };
 
-/** The starting session: nothing chosen, nothing dealt. */
+/** The starting session: nothing chosen, nothing dealt, nothing observed. */
 export function createSession(): GameSession {
   return Object.freeze({
     stage: "grade-setup",
@@ -119,6 +132,7 @@ export function createSession(): GameSession {
     board: null,
     state: null,
     completedBoards: 0,
+    tally: emptySessionFacts(),
   });
 }
 
@@ -314,18 +328,75 @@ export function valueVisibilityFor(
 
 function withEngineState(session: GameSession, state: GameState): GameSession {
   if (!isGameComplete(state)) return Object.freeze({ ...session, state });
+
+  // Only a production board counts toward the session bounds: the warm-up is excluded by the story's own policy.
+  const finishedProductionBoard = session.board?.kind === "production-board" ? 1 : 0;
   return Object.freeze({
     ...session,
     state,
     stage: "board-complete",
     completedBoards: session.completedBoards + 1,
+    tally: Object.freeze({
+      ...session.tally,
+      productionBoards: session.tally.productionBoards + finishedProductionBoard,
+    }),
+  });
+}
+
+/**
+ * Fold one resolved comparison into the session's facts.
+ *
+ * Derived from the engine's own transition — the resolution the action produced, and the plan cards it names —
+ * so the summary cannot drift from what happened. There is deliberately no second place recording "pairs
+ * matched": the engine decided it, and this only counts it.
+ */
+function accumulate(session: GameSession, before: GameState, after: GameState): GameSession {
+  const resolution = after.lastResolution;
+  if (resolution === null || resolution === before.lastResolution) return session;
+
+  const byIndex = new Map(boardCardsInEngineOrder(session).map((entry) => [entry.cardIndex, entry.card]));
+  const left = byIndex.get(resolution.cardIndexes[0]);
+  const right = byIndex.get(resolution.cardIndexes[1]);
+  if (left === undefined || right === undefined) return session;
+
+  const families = new Set(session.tally.familiesPracticed);
+  families.add(left.representation);
+  families.add(right.representation);
+
+  const mismatch = resolution.outcome === "mismatch";
+  const mismatchClass = mismatch ? classifyMismatch(left.form, right.form) : null;
+
+  return Object.freeze({
+    ...session,
+    tally: Object.freeze({
+      ...session.tally,
+      moves: session.tally.moves + 1,
+      pairsMatched: session.tally.pairsMatched + (mismatch ? 0 : 1),
+      mismatches: session.tally.mismatches + (mismatch ? 1 : 0),
+      // Ordered by the representation layer's own family order, so the summary is stable rather than
+      // insertion-ordered by whichever card happened to be picked first.
+      familiesPracticed: Object.freeze(
+        [...families].sort(
+          (leftFamily, rightFamily) =>
+            REPRESENTATION_FAMILIES.indexOf(leftFamily) - REPRESENTATION_FAMILIES.indexOf(rightFamily),
+        ),
+      ),
+      mismatchesByClass:
+        mismatchClass === null
+          ? session.tally.mismatchesByClass
+          : Object.freeze({
+              ...session.tally.mismatchesByClass,
+              [mismatchClass]: session.tally.mismatchesByClass[mismatchClass] + 1,
+            }),
+    }),
   });
 }
 
 function dispatch(session: GameSession, action: GameAction): GameSession {
   const state = session.state;
   if (state === null) return session;
-  return withEngineState(session, applyAction(state, action).state);
+  const next = applyAction(state, action).state;
+  return withEngineState(accumulate(session, state, next), next);
 }
 
 function dealInto(session: GameSession, kind: BoardKind, lane: LaneConfig, seed: number): GameSession {
@@ -381,12 +452,44 @@ export function applyIntent(session: GameSession, intent: GameIntent): GameSessi
     case "next-board": {
       const gradeBand = session.gradeBand;
       if (gradeBand === null) return session;
+      // Anywhere in the arc, but not from the summary or the recovery surface, which have their own actions.
+      if (session.stage === "session-summary" || session.stage === "calm-recovery" || session.stage === "grade-setup") {
+        return session;
+      }
       const nextKind: BoardKind = session.board?.kind === "warm-up" ? "production-board" : "warm-up";
       const lane = boardLaneFor(productionLaneFor(gradeBand), nextKind, intent.viewport);
       return dealInto(session, nextKind, lane, intent.seed);
     }
 
-    case "end-session":
+    case "end-session": {
+      /*
+       * Ending a session reports it rather than discarding it, and drops the board and engine state on the way:
+       * the summary is a projection of the session's own facts, so keeping a live board around would only be a way
+       * for one of them to outlive the other.
+       */
+      const endable =
+        session.stage === "instruction" || session.stage === "board" || session.stage === "board-complete";
+      if (!endable) return session;
+      return Object.freeze({
+        stage: "session-summary",
+        gradeBand: session.gradeBand,
+        board: null,
+        state: null,
+        completedBoards: session.completedBoards,
+        tally: session.tally,
+      });
+    }
+
+    case "play-again": {
+      const gradeBand = session.gradeBand;
+      if (gradeBand === null) return createSession();
+      // A genuinely new session: a fresh tally, and the warm-up again, because the warm-up is excluded from the
+      // bounds and belongs at the start of the arc rather than only the first time.
+      const fresh = Object.freeze({ ...createSession(), gradeBand });
+      return dealInto(fresh, "warm-up", warmUpLaneFor(productionLaneFor(gradeBand)), intent.seed);
+    }
+
+    case "change-grade":
       return createSession();
   }
 }
