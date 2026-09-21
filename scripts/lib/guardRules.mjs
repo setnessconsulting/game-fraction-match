@@ -408,6 +408,125 @@ export const PRIVACY_SOURCE_ONLY_RULES = [
 ];
 
 /* ------------------------------------------------------------------ *
+ * Lane isolation scanners
+ * ------------------------------------------------------------------ */
+
+/**
+ * Packages a lane module may import. None: a lane is content plus rules, and it stays testable without a
+ * renderer, so React, the DOM and every utility library are all out.
+ */
+export const LANE_ALLOWED_PACKAGES = Object.freeze([]);
+
+/**
+ * Every import violation in one lane module.
+ *
+ * Returns `{ ruleId, line, specifier, resolved, message }[]`. The rule ids are stable so a caller (or a
+ * unit test) can assert *which* rule fired rather than matching prose.
+ */
+export function findLaneImportViolations(repoPath, source) {
+  const findings = [];
+
+  for (const { specifier, line } of findImportSpecifiers(source)) {
+    const resolved = resolveSpecifier(repoPath, specifier);
+
+    if (isDeepEngineImport(resolved)) {
+      findings.push({
+        ruleId: "lane-deep-engine-import",
+        line,
+        specifier,
+        resolved,
+        message: `a lane may import the public engine boundary only; "${specifier}" reaches engine internals (resolved "${resolved}")`,
+      });
+      continue;
+    }
+
+    if (resolved !== null && resolved.startsWith(`${REPRESENTATION_ROOT}/`)) {
+      findings.push({
+        ruleId: "lane-deep-representation-import",
+        line,
+        specifier,
+        resolved,
+        message: `a lane may import the public representation boundary only; "${specifier}" reaches its internals (resolved "${resolved}")`,
+      });
+      continue;
+    }
+
+    if (isOutOfSourceImport(resolved)) {
+      findings.push({
+        ruleId: "lane-out-of-source-import",
+        line,
+        specifier,
+        resolved,
+        message: `a lane must not import repository tooling (resolved "${resolved}")`,
+      });
+      continue;
+    }
+
+    if (resolved === null) {
+      findings.push({
+        ruleId: "lane-package-import",
+        line,
+        specifier,
+        resolved,
+        message:
+          `a lane must import no package at all; "${specifier}" is not application source. ` +
+          "A lane is content and rules, and it stays testable without a renderer.",
+      });
+      continue;
+    }
+
+    if (resolved === ENGINE_ROOT || resolved === REPRESENTATION_ROOT) continue;
+
+    if (!isLaneInternalImport(resolved)) {
+      findings.push({
+        ruleId: "lane-foreign-import",
+        line,
+        specifier,
+        resolved,
+        message: `a lane must stay self-contained or consume a public boundary; "${specifier}" resolves to "${resolved}"`,
+      });
+    }
+  }
+
+  return findings;
+}
+
+/**
+ * Ambient-capability violations in one lane module.
+ *
+ * Selection belongs to the engine's seeded generator, so a lane that could reach for entropy would be a
+ * second generator. Comments and string literals are stripped first, so prose about a clock is not a
+ * finding.
+ */
+export function findLaneAmbientViolations(source) {
+  return findPatternViolations(stripCommentsAndStrings(source), ENGINE_AMBIENT_RULES).map((violation) => ({
+    ruleId: `lane-${violation.ruleId}`,
+    line: violation.line,
+    message: violation.message,
+    excerpt: violation.excerpt,
+  }));
+}
+
+/** Every lane-layer violation in one module: imports first, then ambient capability. */
+export function findLaneViolations(repoPath, source) {
+  const findings = findLaneImportViolations(repoPath, source).map((finding) => ({
+    ruleId: finding.ruleId,
+    line: finding.line,
+    detail: finding.message,
+  }));
+
+  for (const violation of findLaneAmbientViolations(source)) {
+    findings.push({
+      ruleId: violation.ruleId,
+      line: violation.line,
+      detail: `${violation.message} (${violation.excerpt})`,
+    });
+  }
+
+  return findings;
+}
+
+/* ------------------------------------------------------------------ *
  * Representation style invariants
  * ------------------------------------------------------------------ */
 

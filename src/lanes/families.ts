@@ -81,6 +81,7 @@ export function laneFamilies(lane: LaneConfig): readonly LaneFamily[] {
     .filter((denominator) => Number.isSafeInteger(denominator) && denominator >= LANE_MIN_DENOMINATOR)
     .sort((left, right) => left - right);
   const maxForms = lane.maxFormsPerFamily ?? DEFAULT_MAX_FORMS_PER_FAMILY;
+  const declaredScaleFactors = lane.scaleFactors;
   const families: LaneFamily[] = [];
 
   for (const denominator of denominators) {
@@ -92,6 +93,9 @@ export function laneFamilies(lane: LaneConfig): readonly LaneFamily[] {
       for (const candidate of denominators) {
         if (candidate % denominator !== 0) continue;
         const scale = candidate / denominator;
+        // Scale factor 1 is the value's own authored form and is always available; the lane's declared
+        // set restricts only the equivalent notations written on top of it.
+        if (scale !== 1 && declaredScaleFactors !== undefined && !declaredScaleFactors.includes(scale)) continue;
         forms.push({ numerator: numerator * scale, denominator: candidate });
         if (forms.length >= maxForms) break;
       }
@@ -170,4 +174,57 @@ export function dealtNearMissLinks(deckFamilyIds: readonly string[], pool: reado
   return Object.freeze(
     nearMissLinks(pool).filter((link) => dealt.has(link.leftFamilyId) && dealt.has(link.rightFamilyId)),
   );
+}
+
+/** One pool value placed exactly on the lane's axis, in whole ticks. */
+export type LaneTickPosition = {
+  readonly familyId: string;
+  /** Exact distance from the axis origin, in `ticksPerUnit`-ths of the domain's first unit. */
+  readonly ticks: number;
+};
+
+/**
+ * Every pool value's exact position on the lane's axis, in whole ticks.
+ *
+ * The lane's divisibility rule (`laneWholeProblems`) already requires every catalogue denominator to
+ * divide `whole.ticksPerUnit`, and a canonical denominator divides some catalogue denominator, so every
+ * position here is an exact integer. Returns `null` when that invariant does not hold, because then a
+ * comparison would have to round and the caller must report the lane instead of approximating.
+ */
+export function poolTickPositions(
+  families: readonly LaneFamily[],
+  ticksPerUnit: number,
+): readonly LaneTickPosition[] | null {
+  if (!Number.isSafeInteger(ticksPerUnit) || ticksPerUnit <= 0) return null;
+
+  const positions: LaneTickPosition[] = [];
+  for (const family of families) {
+    if (family.canonicalDenominator <= 0 || ticksPerUnit % family.canonicalDenominator !== 0) return null;
+    positions.push(
+      Object.freeze({
+        familyId: family.familyId,
+        ticks: family.canonicalNumerator * (ticksPerUnit / family.canonicalDenominator),
+      }),
+    );
+  }
+  return Object.freeze(positions);
+}
+
+/**
+ * The smallest exact gap between two distinct pool values, in whole ticks.
+ *
+ * `null` when the pool holds fewer than two values or a value cannot be placed on the axis at all.
+ */
+export function minimumPoolTickGap(families: readonly LaneFamily[], ticksPerUnit: number): number | null {
+  const positions = poolTickPositions(families, ticksPerUnit);
+  if (positions === null || positions.length < 2) return null;
+
+  const sorted = [...positions].map((position) => position.ticks).sort((left, right) => left - right);
+  let smallest: number | null = null;
+  for (let index = 1; index < sorted.length; index += 1) {
+    const gap = sorted[index]! - sorted[index - 1]!;
+    if (gap <= 0) continue;
+    if (smallest === null || gap < smallest) smallest = gap;
+  }
+  return smallest;
 }

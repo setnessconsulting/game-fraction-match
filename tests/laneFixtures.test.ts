@@ -104,12 +104,22 @@ describe("lane fixtures", () => {
       expect(plan.diagnostics.poolSize).toBeGreaterThanOrEqual(lane.pairCount);
       expect(() => assertLanePlanInvariants(plan)).not.toThrow();
 
+      // The per-form evidence lives in the coverage report, which measures the whole pool rather than one
+      // board; every card the planner drew must be a family that report proved legible for that exact
+      // authored form.
+      const coverage = laneCoverageReport(lane);
+
       for (const card of plan.cards) {
         expect(card.legibility.legible).toBe(true);
         // The whole is the lane's declaration, never the card's own choice.
         expect(card.whole).toStrictEqual(wholes.resolver(card.representation));
         expect(card.whole.wholeId).not.toBe("");
-        expect(card.rejections.every((rejection) => rejection.family !== card.representation)).toBe(true);
+
+        const form = coverage.forms.find(
+          (entry) => entry.label === `${card.form.numerator}/${card.form.denominator}`,
+        );
+        expect(form, `${card.form.numerator}/${card.form.denominator}`).toBeDefined();
+        expect(form!.legibleFamilies).toContain(card.representation);
       }
 
       // One declared whole per lane: no card may quietly carry a different collection or axis.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { REPRESENTATION_FAMILIES } from "../src/representations";
+import { REPRESENTATION_FAMILIES, type RepresentationFamily } from "../src/representations";
 import { laneCoverageReport } from "../src/lanes";
 import { laneWithCatalogue, laneWithMix, testLane } from "./laneTestFixtures";
 
@@ -114,14 +114,25 @@ describe("lane coverage", () => {
     expect(report.problems).toEqual([]);
   });
 
-  it("states a rejection's reason, or says so when a family reported none", () => {
-    // `problems[0] ?? "rejected without a reason"` is the fallback that keeps a report readable even if a
-    // future rejection path carries an empty list, so it is asserted directly.
+  it("states a reason for every rejection it records", () => {
     const report = laneCoverageReport(laneWithMix([{ family: "symbolic" }]));
+    expect(report.forms.length).toBeGreaterThan(0);
     for (const form of report.forms) {
       for (const rejection of form.rejections) {
         expect(rejection.problems.length).toBeGreaterThan(0);
       }
     }
+  });
+
+  it("rethrows a failure that is not the contract's own refusal, rather than mislabelling it", () => {
+    // An unknown family name is not a legibility judgement: there is no geometry to measure, so the report
+    // must fail loudly instead of recording a rejection it cannot explain. This is the reason the catch only
+    // absorbs `RepresentationContractError`.
+    const lane = laneWithMix([{ family: "spiral" as unknown as RepresentationFamily }], {
+      requireDistinctRepresentationPerPair: false,
+    });
+
+    expect(() => laneCoverageReport(lane)).toThrow(TypeError);
+    expect(() => laneCoverageReport(lane)).not.toThrow(/rejected without a reason/);
   });
 });

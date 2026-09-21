@@ -20,6 +20,10 @@ export default defineConfig({
       // The GAME-186 representation layer is measured the same way. It is a projection rather than an
       // authority, but the legibility floors are geometry, and geometry that is not measured is not
       // guaranteed: the pure modules and the React primitives are both covered here.
+      //
+      // The GAME-187 lane layer is measured too, and for a harder reason: it is the only place that decides
+      // *content* — which denominators may be dealt, how a lane narrows under adaptation and when a review
+      // is scheduled. Content rules that are not measured are content rules that drift.
       include: [
         "src/engine/index.ts",
         "src/engine/rational.ts",
@@ -29,6 +33,7 @@ export default defineConfig({
         "src/engine/gameState.ts",
         "src/representations/**/*.ts",
         "src/representations/**/*.tsx",
+        "src/lanes/**/*.ts",
       ],
       reporter: ["text", "json-summary", "lcov"],
       thresholds: {

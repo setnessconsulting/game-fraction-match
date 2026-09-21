@@ -23,11 +23,16 @@
  */
 
 export {
+  DEFAULT_LANE_THRESHOLDS,
   DEFAULT_MAX_FORMS_PER_FAMILY,
+  DISTRACTOR_FAMILIES,
   GRADE_BANDS,
+  HUNDRED_PART_DENOMINATOR,
+  LABEL_VISIBILITY_VALUES,
   LANE_MAX_DENOMINATOR,
   LANE_MIN_DENOMINATOR,
   LaneConfigError,
+  MIN_LANE_SCALE_FACTOR,
   laneIndexAfter,
   laneIndexBefore,
   laneProgress,
@@ -35,11 +40,14 @@ export {
   laneStructureProblems,
 } from "./schema";
 export type {
+  DistractorFamily,
   DistractorPolicy,
   GradeBand,
+  LabelVisibility,
   LaneConfig,
   LaneProgress,
   LaneSequence,
+  LaneThresholds,
   LaneWholeDeclaration,
   NumeratorPolicy,
 } from "./schema";
@@ -50,10 +58,24 @@ export {
   laneEquivalenceFamilies,
   laneFamilies,
   laneNumerators,
+  minimumPoolTickGap,
   nearMissLinks,
   nearMissSignals,
+  poolTickPositions,
 } from "./families";
-export type { LaneFamily, NearMissKind, NearMissLink } from "./families";
+export type { LaneFamily, LaneTickPosition, NearMissKind, NearMissLink } from "./families";
+
+export {
+  CURRICULUM_CLAIMS,
+  CURRICULUM_MAP,
+  GRADE_BAND_DENOMINATOR_CATALOGUES,
+  curriculumLanes,
+  curriculumLineFor,
+  curriculumLineProblems,
+  curriculumProblems,
+  gradeBandDenominatorProblems,
+} from "./curriculum";
+export type { CurriculumClaim, CurriculumLine, CurriculumStandard } from "./curriculum";
 
 export { laneWholeFor, laneWholeProblems, laneWholeSummary, laneWholes } from "./wholes";
 export type { LaneWholeResolver, LaneWholes } from "./wholes";
@@ -61,7 +83,43 @@ export type { LaneWholeResolver, LaneWholes } from "./wholes";
 export { laneCoverageReport } from "./coverage";
 export type { LaneCoverageReport, LaneFormCoverage } from "./coverage";
 
-export { assertValidLane, isSatisfiableLane, validateLaneConfig } from "./validate";
+export { assertValidLane, isSatisfiableLane, laneHundredPartGridProblems, validateLaneConfig } from "./validate";
 
 export { LanePlanError, assertLanePlanInvariants, planLaneDeck } from "./plan";
 export type { LaneCardPlan, LanePairPlan, LanePlan } from "./plan";
+
+export {
+  DIFFICULTY_DIMENSIONS,
+  LaneLadderError,
+  assertLaneLadderInvariants,
+  differingDimensions,
+  laneLadder,
+} from "./difficulty";
+export type { DifficultyDimension, LaneLadder, LaneRung } from "./difficulty";
+
+export {
+  LaneSessionError,
+  MAX_EVIDENCE_BOARDS,
+  MAX_PENDING_REVIEW,
+  REVIEW_FRESHNESS_ATTEMPTS,
+  boardOutcomeFor,
+  createLaneSession,
+  dueReviewItems,
+  laneSessionSummary,
+  laneThresholdsOf,
+  planLaneBoard,
+  recordBoardOutcome,
+  sameCanonicalValue,
+} from "./adaptation";
+export type {
+  BoardConfusion,
+  BoardOutcome,
+  CanonicalValue,
+  LaneBoard,
+  LaneSession,
+  LaneSessionSummary,
+  MemorizedCard,
+  MemorizedInstance,
+  ReviewItem,
+  ReviewReason,
+} from "./adaptation";

@@ -256,3 +256,71 @@ button:focus-visible {
   padding: 0;
   list-style: none;
 }
+
+/*
+ * GAME-187 lane panel.
+ *
+ * The lane card size is a declared custom property for the same reason the gallery's is: a lane's card box
+ * is the box its representations were qualified at, so the rendered card has to be exactly that size or
+ * every legibility floor measured for the lane becomes a fiction.
+ */
+:root {
+  --fm-lane-card-size: 96px;
+}
+
+.fm-card--lane {
+  width: var(--fm-lane-card-size);
+  height: var(--fm-lane-card-size);
+}
+
+.lane-board {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--fm-border);
+}
+
+.lane-board:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.lane-board__pairs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lane-pair {
+  padding: 0.5rem;
+  border: 1px dashed var(--fm-border);
+  border-radius: 0.5rem;
+}
+
+.lane-pair[data-distinct-representations="true"] {
+  border-style: solid;
+}
+
+.lane-cards {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lane-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.lane-card__label {
+  margin: 0;
+  color: var(--fm-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}

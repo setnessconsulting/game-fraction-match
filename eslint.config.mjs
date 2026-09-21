@@ -66,6 +66,57 @@ export default defineConfig(
     },
   },
   {
+    // The lane layer (GAME-187) is content plus rules, sitting between two authorities it must not replace:
+    // the engine chooses the values and the representation layer chooses the pictures. It may consume both
+    // public boundaries and nothing else, may never reach an internal of either, and takes no package at all,
+    // so a lane stays testable in plain Node. `check:lanes` enforces the same rules over source text; this
+    // layer fails fast in editors as well.
+    files: ["src/lanes/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/engine/**"],
+              message:
+                "A lane may import the public engine boundary only: reaching an engine internal would let a lane re-derive a value.",
+            },
+            {
+              group: ["**/representations/**"],
+              message:
+                "A lane may import the public representation boundary only: reaching inside it would let a lane pick its own picture.",
+            },
+            {
+              group: ["react", "react-dom", "react-dom/*", "**/app/**", "**/scripts/**"],
+              message: "A lane is content and rules, not UI: it must stay testable without a renderer.",
+            },
+          ],
+        },
+      ],
+      "no-restricted-globals": [
+        "error",
+        { name: "window", message: "Lane content must not read browser globals; it is data plus rules." },
+        { name: "document", message: "Lane content must not touch the DOM." },
+        { name: "localStorage", message: "Lane content must not read or write persistence." },
+        { name: "sessionStorage", message: "Lane content must not read or write persistence." },
+        { name: "indexedDB", message: "Lane content must not read or write persistence." },
+        { name: "navigator", message: "Lane content must not read browser globals." },
+        { name: "fetch", message: "Lane content must not perform network access." },
+        { name: "crypto", message: "Lane content must not read ambient entropy; the engine's seeded generator is the only source of selection." },
+        { name: "setTimeout", message: "Lane content must not schedule timers; a board is a value, not a schedule." },
+        { name: "setInterval", message: "Lane content must not schedule timers." },
+        { name: "requestAnimationFrame", message: "Lane content must not schedule frame callbacks." },
+      ],
+      "no-restricted-properties": [
+        "error",
+        { object: "Math", property: "random", message: "A lane must not use ambient randomness; selection belongs to the engine's seeded generator." },
+        { object: "Date", property: "now", message: "A lane must not read the wall clock; latency is diagnostic and arrives as data." },
+        { object: "performance", property: "now", message: "A lane must not read a high-resolution clock." },
+      ],
+    },
+  },
+  {
     // The deterministic engine is the mathematical authority. It must stay pure: no React,
     // no DOM, no clock, no ambient entropy, no persistence, no network. The repository
     // `check:purity` script enforces the same rules over source text; this lint layer fails

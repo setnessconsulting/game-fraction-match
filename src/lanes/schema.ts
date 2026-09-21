@@ -33,8 +33,77 @@ export const LANE_MIN_DENOMINATOR = 2;
 /** Upper bound on a declared denominator. A sanity bound, not a product decision. */
 export const LANE_MAX_DENOMINATOR = 1000;
 
+/**
+ * The one catalogue denominator that may never be drawn as a partition grid.
+ *
+ * A hundred-part card grid is unreadable at every shipped card size, so a lane whose catalogue contains
+ * 100 must resolve that value symbolically or on a number line. Enforced by
+ * `laneHundredPartGridProblems`, because "the legibility policy happens to reject it" is a measurement
+ * and not a promise.
+ */
+export const HUNDRED_PART_DENOMINATOR = 100;
+
 /** How many authored forms one value may contribute to a lane's pool. */
 export const DEFAULT_MAX_FORMS_PER_FAMILY = 3;
+
+/**
+ * Smallest scale factor that writes a *different* authored form of the same value.
+ *
+ * Scale factor 1 is the value's own authored form and is always available, so a lane only declares the
+ * factors that write an equivalent notation on top of it. `2` is therefore the smallest declarable factor.
+ */
+export const MIN_LANE_SCALE_FACTOR = 2;
+
+/**
+ * Whether a card shows the written fraction beside (or instead of) its picture.
+ *
+ * This is the scaffolding knob. `always` states the value in words as well as in geometry, `on-reveal`
+ * withholds the label until the card is matched, and `never` is the lowest-scaffolding setting. The
+ * *adaptation* layer may restore scaffolding after repeated confusion, but only between boards.
+ */
+export type LabelVisibility = "always" | "on-reveal" | "never";
+
+/** Canonical label-visibility order, most scaffolded first. Adaptation unlocks along this list. */
+export const LABEL_VISIBILITY_VALUES: readonly LabelVisibility[] = Object.freeze([
+  "always",
+  "on-reveal",
+  "never",
+]);
+
+/**
+ * Which near-miss relationship classes a lane accepts as distractor material.
+ *
+ * A distractor is *plausible* when it shares a written signal with the target — the same numerator
+ * (`1/2` beside `1/3`) or the same denominator (`1/4` beside `3/4`). A lane may declare which of those
+ * two classes it wants; the classes are the pool-level vocabulary, not a rendering decision.
+ */
+export type DistractorFamily = "same-numerator" | "same-denominator";
+
+/** Canonical distractor-family order. */
+export const DISTRACTOR_FAMILIES: readonly DistractorFamily[] = Object.freeze([
+  "same-numerator",
+  "same-denominator",
+]);
+
+/**
+ * The three session thresholds a lane declares.
+ *
+ * - `progression` — how many consecutive clean boards are needed before difficulty may step **up** one
+ *   rung. One rung per boundary, never more.
+ * - `fallback` — how many confusions inside one board step difficulty **down** one rung. Applied at the
+ *   next boundary, so the board the learner is looking at never changes under them.
+ * - `review` — how many boards later a confused value is scheduled for a fresh review instance.
+ *
+ * Latency is deliberately absent: speed is diagnostic and can never promote or demote.
+ */
+export type LaneThresholds = {
+  readonly progression: number;
+  readonly fallback: number;
+  readonly review: number;
+};
+
+/** Defaults for a lane that does not state its own thresholds. Documented so a lane can be explicit. */
+export const DEFAULT_LANE_THRESHOLDS: LaneThresholds = Object.freeze({ progression: 2, fallback: 2, review: 1 });
 
 /** Which authored numerators a lane allows for each catalogue denominator. */
 export type NumeratorPolicy = {
@@ -79,6 +148,20 @@ export type DistractorPolicy = {
    * pool must be connected through near-miss links.
    */
   readonly minimumNearMissLinks?: number;
+  /**
+   * Minimum exact gap between two distinct values in the pool, written as an authored fraction (`1/8`).
+   *
+   * A distractor too close to its target is a coin toss rather than a question. The gap is compared on
+   * the lane's own axis: every catalogue denominator already divides `whole.ticksPerUnit`, so each pool
+   * value has an exact tick position and the comparison stays integer arithmetic. The gap's denominator
+   * must therefore divide `ticksPerUnit` too, otherwise the gap could not be placed on the axis at all.
+   */
+  readonly minimumRationalGap?: { readonly numerator: number; readonly denominator: number };
+  /**
+   * Which near-miss classes this lane accepts as distractor material. Defaults to every class the pool
+   * happens to realize; when declared, each named class must actually occur in the pool.
+   */
+  readonly families?: readonly DistractorFamily[];
 };
 
 /** One lane: a pool of values, one whole, one card box, one representation preference order. */
@@ -100,6 +183,16 @@ export type LaneConfig = {
   readonly requireDistinctRepresentationPerPair?: boolean;
   readonly whole: LaneWholeDeclaration;
   readonly distractorPolicy?: DistractorPolicy;
+  /**
+   * The scale factors this lane may use to write an equivalent authored form of a value. Each factor is
+   * an integer of at least {@link MIN_LANE_SCALE_FACTOR}. Omit to accept every factor the catalogue
+   * naturally affords.
+   */
+  readonly scaleFactors?: readonly number[];
+  /** Whether cards show their written label. Defaults to `"always"`. */
+  readonly labelVisibility?: LabelVisibility;
+  /** Progression, fallback and review thresholds. Defaults to {@link DEFAULT_LANE_THRESHOLDS}. */
+  readonly thresholds?: LaneThresholds;
   /** Forwarded to the engine's deck generator. */
   readonly constraints?: { readonly requireDistinctAuthoredForms?: boolean };
 };
@@ -289,13 +382,98 @@ export function laneStructureProblems(lane: LaneConfig): readonly string[] {
   if (distractorPolicy !== undefined) {
     if (!isOptionsObject(distractorPolicy)) {
       problems.push(`distractorPolicy must be an object; received ${describe(distractorPolicy)}`);
-    } else if (
-      distractorPolicy.minimumNearMissLinks !== undefined &&
-      (!Number.isSafeInteger(distractorPolicy.minimumNearMissLinks) || distractorPolicy.minimumNearMissLinks < 0)
-    ) {
-      problems.push(
-        `distractorPolicy.minimumNearMissLinks must be a non-negative integer; received ${describe(distractorPolicy.minimumNearMissLinks)}`,
-      );
+    } else {
+      if (
+        distractorPolicy.minimumNearMissLinks !== undefined &&
+        (!Number.isSafeInteger(distractorPolicy.minimumNearMissLinks) || distractorPolicy.minimumNearMissLinks < 0)
+      ) {
+        problems.push(
+          `distractorPolicy.minimumNearMissLinks must be a non-negative integer; received ${describe(distractorPolicy.minimumNearMissLinks)}`,
+        );
+      }
+
+      const gap = distractorPolicy.minimumRationalGap;
+      if (gap !== undefined) {
+        if (!isOptionsObject(gap)) {
+          problems.push(`distractorPolicy.minimumRationalGap must be an object; received ${describe(gap)}`);
+        } else {
+          if (!Number.isSafeInteger(gap.numerator) || gap.numerator < 0) {
+            problems.push(
+              `distractorPolicy.minimumRationalGap.numerator must be a non-negative integer; received ${describe(gap.numerator)}`,
+            );
+          }
+          if (!Number.isSafeInteger(gap.denominator) || gap.denominator < 1) {
+            problems.push(
+              `distractorPolicy.minimumRationalGap.denominator must be a positive integer; received ${describe(gap.denominator)}`,
+            );
+          }
+        }
+      }
+
+      const families = distractorPolicy.families;
+      if (families !== undefined) {
+        if (!Array.isArray(families)) {
+          problems.push(`distractorPolicy.families must be an array; received ${describe(families)}`);
+        } else if (families.length === 0) {
+          problems.push("distractorPolicy.families must name at least one distractor class");
+        } else {
+          const seen = new Set<string>();
+          families.forEach((family, index) => {
+            if (!DISTRACTOR_FAMILIES.includes(family)) {
+              problems.push(
+                `distractorPolicy.families[${index}] must be one of ${DISTRACTOR_FAMILIES.join(", ")}; received ${describe(family)}`,
+              );
+              return;
+            }
+            if (seen.has(family)) problems.push(`distractorPolicy.families[${index}] repeats distractor class "${family}"`);
+            seen.add(family);
+          });
+        }
+      }
+    }
+  }
+
+  const scaleFactors = lane.scaleFactors;
+  if (scaleFactors !== undefined) {
+    if (!Array.isArray(scaleFactors)) {
+      problems.push(`scaleFactors must be an array; received ${describe(scaleFactors)}`);
+    } else if (scaleFactors.length === 0) {
+      problems.push("scaleFactors must contain at least one factor");
+    } else {
+      const seen = new Set<number>();
+      scaleFactors.forEach((factor, index) => {
+        if (!Number.isSafeInteger(factor)) {
+          problems.push(`scaleFactors[${index}] must be a safe integer; received ${describe(factor)}`);
+          return;
+        }
+        if (factor < MIN_LANE_SCALE_FACTOR) {
+          problems.push(
+            `scaleFactors[${index}] must be at least ${MIN_LANE_SCALE_FACTOR}; scale factor 1 is the value's own authored form and is always available; received ${factor}`,
+          );
+        }
+        if (seen.has(factor)) problems.push(`scaleFactors[${index}] duplicates scale factor ${factor}`);
+        seen.add(factor);
+      });
+    }
+  }
+
+  if (lane.labelVisibility !== undefined && !LABEL_VISIBILITY_VALUES.includes(lane.labelVisibility)) {
+    problems.push(
+      `labelVisibility must be one of ${LABEL_VISIBILITY_VALUES.join(", ")}; received ${describe(lane.labelVisibility)}`,
+    );
+  }
+
+  const thresholds = lane.thresholds;
+  if (thresholds !== undefined) {
+    if (!isOptionsObject(thresholds)) {
+      problems.push(`thresholds must be an object; received ${describe(thresholds)}`);
+    } else {
+      for (const key of ["progression", "fallback", "review"] as const) {
+        const value = thresholds[key];
+        if (!Number.isSafeInteger(value) || value < 1) {
+          problems.push(`thresholds.${key} must be an integer of at least 1; received ${describe(value)}`);
+        }
+      }
     }
   }
 

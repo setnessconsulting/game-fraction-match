@@ -64,6 +64,26 @@ export function isOutOfSourceImport(resolvedPath: string | null): boolean;
 export function isLaneInternalImport(resolvedPath: string | null): boolean;
 export function isAllowedLaneDependency(resolvedPath: string | null): boolean;
 
+export type LaneImportFinding = {
+  readonly ruleId: string;
+  readonly line: number;
+  readonly specifier: string;
+  readonly resolved: string | null;
+  readonly message: string;
+};
+
+export type LaneViolation = {
+  readonly ruleId: string;
+  readonly line: number;
+  readonly detail: string;
+};
+
+export const LANE_ALLOWED_PACKAGES: readonly string[];
+
+export function findLaneImportViolations(repoPath: string, source: string): LaneImportFinding[];
+export function findLaneAmbientViolations(source: string): GuardViolation[];
+export function findLaneViolations(repoPath: string, source: string): LaneViolation[];
+
 export const ENGINE_AMBIENT_RULES: readonly GuardPatternRule[];
 export const ALLOWED_RUNTIME_DEPENDENCIES: readonly string[];
 export const PRIVACY_RULES: readonly GuardPatternRule[];
