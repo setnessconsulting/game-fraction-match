@@ -15,17 +15,19 @@
  *
  * Coverage validation is what makes the family choice total: every authored form a lane can deal has at
  * least two legible families when the lane asks for two different representations per pair, so the second
- * card of a pair always has somewhere to go. If that ever fails, the plan fails loudly with the reason
- * instead of quietly drawing the same picture twice.
+ * card of a pair always has somewhere to go. Because that is proved before a deck is ever dealt, the planner
+ * asks the representation layer for a *required* legible family rather than a maybe: there is no
+ * "no family left" result for it to handle, and a lane that could not be drawn fails loudly in the
+ * representation layer's own terms instead of being planned with a hole in it. The per-form evidence a lane
+ * author needs lives in `laneCoverageReport`, which measures the whole pool rather than one board.
  */
 
 import { assertDeckEquivalenceInvariants, createDeck, type Deck, type DeckCard, type FractionForm } from "../engine";
 import {
-  selectLegibleRepresentation,
+  requireLegibleRepresentation,
   type LegibilityVerdict,
   type RepresentationCandidate,
   type RepresentationFamily,
-  type RepresentationRejection,
   type RepresentationWhole,
 } from "../representations";
 import { dealtNearMissLinks, laneEquivalenceFamilies, laneFamilies, nearMissLinks, type NearMissLink } from "./families";
@@ -42,8 +44,6 @@ export type LaneCardPlan = {
   readonly representation: RepresentationFamily;
   readonly whole: RepresentationWhole;
   readonly legibility: LegibilityVerdict;
-  /** Families rejected before this one, with the measured reason. */
-  readonly rejections: readonly RepresentationRejection[];
 };
 
 /** One matched pair as the board will draw it. */
@@ -92,7 +92,10 @@ function emptyRepresentationCounts(): Record<RepresentationFamily, number> {
  * Plan a lane's board for a seed.
  *
  * @throws {LaneConfigError} when the lane is not valid, with every problem it found.
- * @throws {LanePlanError} when a card cannot be drawn or a plan invariant would break.
+ * @throws {RepresentationLegibilityError} when a dealt card has no legible family at the lane's box. A
+ *   validated lane's coverage already rules this out; it is the representation layer's error so that the
+ *   failure names the measurement rather than a lane plan.
+ * @throws {LanePlanError} when the finished plan breaks one of its own invariants.
  */
 export function planLaneDeck(lane: LaneConfig, seed: number): LanePlan {
   assertValidLane(lane);
@@ -106,31 +109,29 @@ export function planLaneDeck(lane: LaneConfig, seed: number): LanePlan {
     ...(lane.constraints === undefined ? {} : { constraints: lane.constraints }),
   });
 
-  const problems: string[] = [];
   const cards: LaneCardPlan[] = [];
   const pairs: LanePairPlan[] = [];
   const representationCounts = emptyRepresentationCounts();
 
-  /** Choose this card's family, preferring one the partner card is not using. */
-  const planCard = (card: DeckCard, avoid: RepresentationFamily | null): LaneCardPlan | null => {
+  /**
+   * Choose this card's family, preferring one the partner card is not using.
+   *
+   * Total for a validated lane: coverage has already proved that every authored form the lane can deal has a
+   * legible family at this box, and two of them when the lane insists on a different picture per pair. The
+   * deliberate absence of a fallback here is what makes that proof load-bearing — if it were ever false, the
+   * representation layer raises its own error instead of this function inventing a picture nobody can read.
+   */
+  const planCard = (card: DeckCard, avoid: RepresentationFamily | null): LaneCardPlan => {
     const candidates: readonly RepresentationCandidate[] =
       distinctRequired && avoid !== null
         ? lane.representationMix.filter((candidate) => candidate.family !== avoid)
         : lane.representationMix;
 
-    const selection = selectLegibleRepresentation(candidates, {
+    const selection = requireLegibleRepresentation(candidates, {
       fraction: card.form,
       box: lane.cardBox,
       wholeFor: wholes.resolver,
     });
-
-    if (!selection.ok) {
-      problems.push(
-        `card ${card.cardId} (${card.form.numerator}/${card.form.denominator}) has no legible family ` +
-          `${avoid === null ? "" : `other than ${avoid} `}in the lane's mix: ${selection.problems.join("; ")}`,
-      );
-      return null;
-    }
 
     const whole = wholes.resolver(selection.family);
     representationCounts[selection.family] += 1;
@@ -141,7 +142,6 @@ export function planLaneDeck(lane: LaneConfig, seed: number): LanePlan {
       representation: selection.family,
       whole,
       legibility: selection.verdict,
-      rejections: selection.rejections,
     });
   };
 
@@ -153,20 +153,14 @@ export function planLaneDeck(lane: LaneConfig, seed: number): LanePlan {
   });
 
   for (const [pairId, indexes] of indexesByPair) {
-    // The engine deals exactly two cards per equivalence family; `assertLanePlanInvariants` re-derives that
-    // from the deck afterwards, so a break here cannot pass unnoticed.
-    const pairCards = indexes
-      .slice(0, 2)
-      .map((index) => deck.cards[index])
-      .filter((card): card is DeckCard => card !== undefined);
-    if (pairCards.length !== 2) {
-      problems.push(`pair "${pairId}" holds ${pairCards.length} card(s); every pair must hold exactly two`);
-      continue;
-    }
+    // The engine deals exactly two cards per equivalence family — `createDeck` proves it with
+    // `assertDeckEquivalenceInvariants` before returning, and `assertLanePlanInvariants` re-derives the shape
+    // of the finished plan from the deck afterwards — so there is no "a pair with the wrong number of cards"
+    // case to handle here.
+    const pairCards: readonly [DeckCard, DeckCard] = [deck.cards[indexes[0]!]!, deck.cards[indexes[1]!]!];
 
-    const first = planCard(pairCards[0]!, null);
-    const second = first === null ? null : planCard(pairCards[1]!, first.representation);
-    if (first === null || second === null) continue;
+    const first = planCard(pairCards[0], null);
+    const second = planCard(pairCards[1], first.representation);
 
     pairs.push(
       Object.freeze({
@@ -178,8 +172,6 @@ export function planLaneDeck(lane: LaneConfig, seed: number): LanePlan {
     );
     cards.push(first, second);
   }
-
-  if (problems.length > 0) throw new LanePlanError(problems);
 
   const pool = laneFamilies(lane);
   const plan: LanePlan = Object.freeze({

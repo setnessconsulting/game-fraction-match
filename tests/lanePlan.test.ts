@@ -5,6 +5,7 @@ import {
   LaneConfigError,
   LanePlanError,
   assertLanePlanInvariants,
+  laneCoverageReport,
   laneWholes,
   planLaneDeck,
   type LaneCardPlan,
@@ -35,10 +36,19 @@ describe("planning a lane", () => {
     expect(Object.isFrozen(plan.cards)).toBe(true);
 
     const wholes = laneWholes(lane);
+    // The family the planner chose for a card must be one the coverage report proved legible for that exact
+    // authored form at this card box. That is the link that makes the planner's choice total rather than
+    // lucky, and it is asserted against the report the lane author reads.
+    const coverage = laneCoverageReport(lane);
+
     for (const card of plan.cards) {
       expect(card.legibility.legible).toBe(true);
       expect(card.whole).toStrictEqual(wholes.resolver(card.representation));
-      expect(card.rejections.every((rejection) => rejection.family !== card.representation)).toBe(true);
+
+      const form = coverage.forms.find((entry) => entry.label === `${card.form.numerator}/${card.form.denominator}`);
+      expect(form, `${card.form.numerator}/${card.form.denominator}`).toBeDefined();
+      expect(form!.legibleFamilies).toContain(card.representation);
+
       // A planned card is the engine's card, not a copy the planner invented.
       expect(plan.deck.cards.some((deckCard) => deckCard.cardId === card.cardId)).toBe(true);
     }
@@ -128,6 +138,14 @@ describe("planning failures", () => {
     expect(() => planLaneDeck(testLane({ pairCount: 99 }), SEED)).toThrow(LaneConfigError);
   });
 
+  it("re-derives the engine's deck invariant rather than trusting the plan's own bookkeeping", () => {
+    // A deck that lost a card is not a board, and the engine's own invariant is what says so.
+    const plan = planLaneDeck(testLane(), SEED);
+    const damaged: LanePlan = { ...plan, deck: { ...plan.deck, cards: plan.deck.cards.slice(1) } };
+
+    expect(() => assertLanePlanInvariants(damaged)).toThrow(/appears 1 time\(s\)/);
+  });
+
   it("refuses when no family in the mix can draw a dealt card", () => {
     // The lane validates only because it lowered the distinct-representation requirement, then loses its one
     // drawable family to the card box: the plan reports the card rather than drawing something illegible.
@@ -141,14 +159,16 @@ describe("planning failures", () => {
     expect(() => planLaneDeck(lane, SEED)).toThrow(LaneConfigError);
   });
 
-  it("reports a plan error when a card has no legible family left", () => {
-    // A single-family mix that the lane requires to differ cannot happen, so the planner is asked directly
-    // through a lane whose second card has nowhere to go.
+  it("draws every card through the required-family selector, so no card is planned without a picture", () => {
+    // A single-family mix is only dealable when the lane stops insisting on two different pictures. The
+    // planner asks for a *required* legible family per card, so this either plans a picture for every card
+    // or raises the representation layer's own error — it can never return a card with no representation.
     const lane = testLane({
       representationMix: [{ family: "symbolic" }],
       requireDistinctRepresentationPerPair: false,
     });
     const plan = planLaneDeck(lane, SEED);
+    expect(plan.cards).toHaveLength(lane.pairCount * 2);
     expect(plan.cards.every((card) => card.representation === "symbolic")).toBe(true);
   });
 

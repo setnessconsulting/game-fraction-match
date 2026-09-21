@@ -13,27 +13,14 @@
  * 3. ambient capability markers (randomness, clock, timers, storage, network). Selection belongs to the
  *    engine's seeded generator: a lane that could reach for entropy would be a second generator.
  *
- * The scanners live in `scripts/lib/guardRules.mjs` and are unit tested in `tests/laneIsolation.test.ts`.
+ * The scanners live in `scripts/lib/guardRules.mjs` and are unit tested in `tests/laneIsolation.test.ts`,
+ * which exercises them against synthetic violating input as well as against this repository's own tree.
  */
 
 import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  ENGINE_ROOT,
-  ENGINE_AMBIENT_RULES,
-  LANE_ROOT,
-  REPRESENTATION_ROOT,
-  collectFiles,
-  findImportSpecifiers,
-  findPatternViolations,
-  isDeepEngineImport,
-  isLaneInternalImport,
-  isOutOfSourceImport,
-  readTextFile,
-  resolveSpecifier,
-  stripCommentsAndStrings,
-} from "./lib/guardRules.mjs";
+import { LANE_ALLOWED_PACKAGES, LANE_ROOT, collectFiles, findLaneViolations, readTextFile } from "./lib/guardRules.mjs";
 
 const repositoryRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const laneRoot = resolve(repositoryRoot, LANE_ROOT);
@@ -54,51 +41,8 @@ for (const absolutePath of sourceFiles) {
     continue;
   }
 
-  for (const { specifier, line } of findImportSpecifiers(source)) {
-    const resolved = resolveSpecifier(repoPath, specifier);
-
-    if (isDeepEngineImport(resolved)) {
-      violations.push(
-        `${repoPath}:${line}: a lane may import the public engine boundary only; ` +
-          `"${specifier}" reaches engine internals (resolved "${resolved}")`,
-      );
-      continue;
-    }
-    if (resolved !== null && (resolved === REPRESENTATION_ROOT || resolved.startsWith(`${REPRESENTATION_ROOT}/`))) {
-      if (resolved !== REPRESENTATION_ROOT) {
-        violations.push(
-          `${repoPath}:${line}: a lane may import the public representation boundary only; ` +
-            `"${specifier}" reaches its internals (resolved "${resolved}")`,
-        );
-      }
-      continue;
-    }
-    if (isOutOfSourceImport(resolved)) {
-      violations.push(
-        `${repoPath}:${line}: a lane must not import repository tooling (resolved "${resolved}")`,
-      );
-      continue;
-    }
-    if (resolved === null) {
-      violations.push(
-        `${repoPath}:${line}: a lane must import no package at all; "${specifier}" is not application source. ` +
-          "A lane is content and rules, and it stays testable without a renderer.",
-      );
-      continue;
-    }
-    if (resolved === ENGINE_ROOT) continue;
-    if (!isLaneInternalImport(resolved)) {
-      violations.push(
-        `${repoPath}:${line}: a lane must stay self-contained or consume a public boundary; ` +
-          `"${specifier}" resolves to "${resolved}"`,
-      );
-    }
-  }
-
-  for (const violation of findPatternViolations(stripCommentsAndStrings(source), ENGINE_AMBIENT_RULES)) {
-    violations.push(
-      `${repoPath}:${violation.line}: ${violation.message} (${violation.ruleId}: ${violation.excerpt})`,
-    );
+  for (const finding of findLaneViolations(repoPath, source)) {
+    violations.push(`${repoPath}:${finding.line}: ${finding.detail} (${finding.ruleId})`);
   }
 }
 
@@ -110,5 +54,6 @@ if (violations.length > 0) {
 
 console.log(
   `PASS: ${sourceFiles.length} lane module(s) consume only the public engine and representation boundaries, ` +
-    "import no package and carry no ambient state.",
+    `import no package (allowed: ${LANE_ALLOWED_PACKAGES.length === 0 ? "none" : LANE_ALLOWED_PACKAGES.join(", ")}) ` +
+    "and carry no ambient state.",
 );

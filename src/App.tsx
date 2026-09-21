@@ -34,6 +34,7 @@ import {
 } from "./engine";
 import { FOUNDATION_DEBUG_SEED, FOUNDATION_FAMILIES } from "./app/foundationFixture";
 import { RepresentationGallery } from "./app/RepresentationGallery";
+import { LanePanel } from "./app/LanePanel";
 
 type FoundationSession = {
   readonly seed: number;
@@ -184,6 +185,8 @@ export default function App() {
         </section>
 
         <RepresentationGallery />
+
+        <LanePanel />
 
         <footer className="shell-footer">
           <span>Session-only, memory-only play.</span>

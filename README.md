@@ -3,12 +3,13 @@
 Standalone browser math game: match two cards that represent the **same amount**, even when the
 symbols look different. Canonical implementation repository for Jira Epic **GAME-97**.
 
-> **This build is the GAME-185 engine plus the GAME-186 representation primitives, not the finished
-> Fraction Match experience.** It ships a deterministic fraction engine, accessible SVG representation
-> primitives for all five families, provenance, architecture guards, CI, and a browser shell with a
-> primitives gallery that proves the standalone artifact boots and that the engine drives the UI. The
-> production card art, grade lanes, board UX and feedback system are deliberately **not** implemented
-> here.
+> **This build is the GAME-185 engine, the GAME-186 representation primitives and the GAME-187 lane
+> layer, not the finished Fraction Match experience.** It ships a deterministic fraction engine,
+> accessible SVG representation primitives for all five families, the grade lanes with their checked-in
+> curriculum map, between-board adaptation and bounded session-local review, provenance, architecture
+> guards, CI, and a browser shell with a primitives gallery and a lane panel that prove the standalone
+> artifact boots and that the engine drives the UI. The production card art, board UX, feedback system and
+> session lifecycle are deliberately **not** implemented here.
 
 ## Status
 
@@ -17,6 +18,7 @@ symbols look different. Canonical implementation repository for Jira Epic **GAME
 | Jira Epic | GAME-97 — Fraction Match — standalone equivalent-fractions game, games-site release and final qualification |
 | Jira story | GAME-185 — FM-01 — Bootstrap standalone repo and exact deterministic fraction engine |
 | Jira story | GAME-186 — FM-02 — Accessible SVG fraction representation primitives |
+| Jira story | GAME-187 — FM-03 — Standalone grade lanes, representation progression and bounded review |
 | Node | 24 (see `.nvmrc` / `.node-version` / `engines.node`) |
 | Runtime dependencies | `react`, `react-dom` — nothing else |
 | Release kind | `static-web` (published by `setnessconsulting/games-site`) |
@@ -71,12 +73,25 @@ src/representations/   Accessible SVG representation primitives (GAME-186). The 
   geometry/            Pure, deterministic geometry per family (bar, circle, set, number-line, symbol).
   components/          React/SVG primitives, one per family, plus the shared comparison view.
 
+src/lanes/             Grade lanes (GAME-187): content as data, validation, planning and adaptation.
+  index.ts             The ONLY public lane surface. No React, no DOM, no package imports.
+  schema.ts            Lane configuration, its policies and its structural validation.
+  families.ts          The lane's value pool, near-miss links and exact axis-tick positions.
+  wholes.ts            The one continuous whole, collection and axis every card in a lane shares.
+  coverage.ts          Per-authored-form legibility coverage against the lane's mix.
+  validate.ts          The four-question lane audit, including the denominator-100 rule.
+  plan.ts              The engine's deck plus one representation decision per card.
+  curriculum.ts        The checked-in grades 3-5 map: claims, catalogues, lanes and exclusions.
+  difficulty.ts        The derived difficulty ladder and its one-dimension-per-rung proof.
+  adaptation.ts        Between-board adaptation and bounded, session-local review.
+
 src/App.tsx            Foundation shell: projects engine state, dispatches engine actions.
-src/app/               Foundation debug fixture, the GAME-186 representation gallery, global styles.
+src/app/               Foundation debug fixture, the GAME-186 gallery, the GAME-187 lane panel, styles.
 scripts/               Architecture guards and the nested asset-base harness.
 tests/                 Unit, property, architecture-guard and browser tests.
 docs/provenance/       Legacy baseline provenance record.
 docs/representations/   The GAME-186 representation contract, written for its consumers.
+docs/lanes/            The GAME-187 lane contract and the grades 3-5 curriculum map.
 ```
 
 ### Rational and engine authority
@@ -113,7 +128,7 @@ import {
   isGameComplete,
 } from "./src/engine";
 
-// A future lane supplies the families; GAME-185 ships only a neutral debug fixture.
+// A lane supplies the families: `laneEquivalenceFamilies(lane)` is the bridge from content to engine data.
 const deck = createDeck({ pairCount: PRODUCTION_PAIR_COUNT, families, seed: 20260921 });
 let state = createGameState(deck);
 
@@ -172,6 +187,54 @@ const choice = selectLegibleRepresentation([{ family: "bar" }, { family: "circle
 choice.ok && <RepresentationByFamily family={choice.family} fraction={form} whole={whole} box={box} />;
 ```
 
+### Grade lanes, progression and bounded review (GAME-187)
+
+A lane is content as data: a denominator catalogue, a numerator policy, a scale-factor set, one shared whole,
+a card box, a representation preference order, a distractor policy, a label-visibility setting and three
+adaptation thresholds. The lane layer never shuffles and never computes equivalence — the engine still
+chooses which pool values are dealt, and the GAME-186 legibility policy still chooses each card's family.
+The full contract is in [`docs/lanes/CONTRACT.md`](docs/lanes/CONTRACT.md).
+
+- **Validation is the audit.** `validateLaneConfig` asks four questions in order — is it structurally a
+  lane, can its wholes carry its catalogue, does the catalogue yield a usable pool, can its mix draw every
+  value in that pool — and reports every problem at once. A lane that cannot be dealt fails loudly; no
+  content or representation requirement is ever silently dropped.
+- **The denominator-100 rule is a lane invariant.** A lane whose catalogue contains 100 may never draw a
+  hundredth as a partition grid: `symbolic` and `number-line` are exempt because neither draws a grid, and
+  every other family must cap its `maxPartitionCount` below 100, which makes the grid *unreachable* rather
+  than merely illegible.
+- **The curriculum is checked in and separate.** `src/lanes/curriculum.ts` carries the grades 3–5 claims
+  (primary / supporting / review-only), the story's exact denominator catalogues, the exclusions and the
+  shipped lanes. `curriculumProblems()` refuses a claim that inflates what a lane teaches, including a
+  primary claim about another grade's standard. See
+  [`docs/lanes/CURRICULUM_MAP.md`](docs/lanes/CURRICULUM_MAP.md).
+- **Difficulty is a derived ladder.** `laneLadder` walks from the most scaffolded rung to the lane as
+  written, one bounded edit at a time (restore the printed label, drop the least-preferred family, drop the
+  largest catalogue denominator), keeping a rung only while it is still a satisfiable lane.
+  `assertLaneLadderInvariants` then proves that adjacent rungs differ in exactly one dimension and that each
+  change moves in the easier direction.
+- **Adaptation happens between boards only.** `recordBoardOutcome` decides the *next* board's difficulty;
+  the board in play keeps its own. Latency is carried as evidence and read by no decision, so speed never
+  promotes or demotes.
+- **Review is bounded and fresh.** A confused value is scheduled at most `MAX_PENDING_REVIEW` deep, and its
+  review board restores printed labels and refuses to deal the memorized pair again — re-dealing until it
+  does not, and failing loudly if it cannot.
+- **No mastery is expressed.** There is no score, proficiency, level or placement in any type or export.
+
+```ts
+import { boardOutcomeFor, createLaneSession, laneLadder, planLaneBoard, recordBoardOutcome } from "./src/lanes";
+
+const ladder = laneLadder(lane);                 // derived from validated content; no outcomes needed
+let session = createLaneSession(lane, seed);     // starts at the most scaffolded rung
+const board = planLaneBoard(session, ladder);    // frozen: this is the board on screen
+session = recordBoardOutcome(session, ladder, boardOutcomeFor(board, { matchedPairs: 3, activeMs: 12_000 }));
+```
+
+The shell renders the fixture lanes as a debug panel (`src/app/LanePanel.tsx`): one planned board per lane,
+with value, family and distinct-representation facts stated as `data-*` attributes so the browser
+qualification can assert the projection instead of recomputing it. Those fixtures are **neutral examples**
+and carry no standards claim; the reviewed content is the curriculum map.
+
 ### Seeds and determinism
 
 The engine never reads ambient entropy. Seeds are 32-bit unsigned integers supplied as data. The
@@ -202,14 +265,15 @@ npm run dev            # local dev server
 npm run typecheck      # tsc --noEmit
 npm run lint           # eslint
 npm test               # unit + property + architecture-guard tests
-npm run test:coverage  # the same, with engine coverage thresholds (90% per file minimum; currently 100%)
+npm run test:coverage  # the same, with 90% per-file coverage thresholds over engine, representations and lanes
 npm run build          # production static artifact in dist/
 npm run preview        # serve dist/ at the domain root
 
 npm run check:purity           # engine purity: no ambient state, no packages
 npm run check:boundary         # presentation may import only the public engine boundary
 npm run check:representations  # the representation layer stays engine-free, self-contained and static
-npm run check:architecture     # all three guards above
+npm run check:lanes            # the lane layer consumes only the two public boundaries and no package
+npm run check:architecture     # all four guards above
 npm run check:privacy          # dependency allowlist + privacy surface scan (needs a build)
 
 npm run test:e2e       # build, then direct/root browser smoke (port 4173)
@@ -224,7 +288,9 @@ a component. The representation primitives are asserted the same way — React's
 same markup the browser receives, so their accessible names, hidden text alternatives and refusals are
 unit tested without a DOM. Everything the browser alone can measure (real card sizes, rendered label
 spacing, computed contrast, forced colors, reduced motion, 320 px reflow, axe) is asserted in
-`tests/e2e/representationGallery.spec.ts` against the built artifact.
+`tests/e2e/representationGallery.spec.ts` against the built artifact. The lane layer is tested the same
+way — it imports no package at all, so its validation, curriculum map, ladder and adaptation are plain Node —
+and the lane panel reuses the same split: `tests/e2e/lanePanel.spec.ts` measures what only a browser can.
 
 ## Nested-host and static-web requirement
 
@@ -259,8 +325,19 @@ including `/`, `/index.html` and `/assets/`. Playwright then asserts that:
 | Legibility floors, selection, refusals and property sweeps over values and boxes | `tests/representationLegibility.test.ts` |
 | Primitive markup, accessible names and refusal behaviour (server-rendered) | `tests/representationComponents.test.tsx` |
 | Guard scanners, style invariants, palette/card-size drift and gallery decisions | `tests/representationIsolation.test.ts` |
+| Lane configuration, the new progression policies and structural validation | `tests/laneSchema.test.ts` |
+| Lane pools, scale-factor sets, exact axis positions and the distractor gap/class rules | `tests/laneFamilies.test.ts`, `tests/laneDistractors.test.ts` |
+| Lane wholes, divisibility and the shared-whole rules | `tests/laneWholes.test.ts` |
+| Per-authored-form legibility coverage, including a family that cannot express a value | `tests/laneCoverage.test.ts` |
+| Lane planning, pair representation choice and plan invariants | `tests/lanePlan.test.ts` |
+| The curriculum map: exact catalogues, claims, exclusions and the denominator-100 rule | `tests/laneCurriculum.test.ts` |
+| The difficulty ladder and its one-dimension-per-rung invariants | `tests/laneDifficulty.test.ts` |
+| Between-board adaptation, bounded review, latency independence and the no-mastery posture | `tests/laneAdaptation.test.ts` |
+| Lane guard scanners, real-tree isolation and the build/lint wiring | `tests/laneIsolation.test.ts` |
+| The fixture lanes end to end at a fixed seed | `tests/laneFixtures.test.ts` |
 | Browser smoke (direct and nested versioned base) | `tests/e2e/` |
 | Representation qualification in the built artifact (floors, contrast, forced colors, reduced motion, 320 px, label spacing, axe) | `tests/e2e/representationGallery.spec.ts` |
+| Lane panel qualification in the built artifact (card size and scale, one representation per card, distinct families per pair, accessible names, 320 px reflow, axe) | `tests/e2e/lanePanel.spec.ts` |
 
 ## Continuous integration
 
@@ -276,7 +353,7 @@ This foundation intentionally stops before the following work; it builds the sea
 | Story | Owns | Not implemented here |
 | --- | --- | --- |
 | GAME-186 | Accessible SVG representation primitives over these rational values | implemented here — see [`docs/representations/CONTRACT.md`](docs/representations/CONTRACT.md); still not a board, a lane or production card art |
-| GAME-187 | Grade 3/4/5 lanes, denominator catalogues, representation mixes, distractors, progression and review — as `DeckConfig` data | any curriculum, lane or grade logic (it supplies the candidate order, `maxPartitionCount` and the declared wholes this layer consumes) |
+| GAME-187 | Grade 3/4/5 lanes, denominator catalogues, representation mixes, distractors, progression and review | implemented here — see [`docs/lanes/CONTRACT.md`](docs/lanes/CONTRACT.md) and [`docs/lanes/CURRICULUM_MAP.md`](docs/lanes/CURRICULUM_MAP.md); it is content and rules, not a board, a session UI or production card art |
 | GAME-188 | Production visual/responsive/motion design | any visual design authority (the primitives stay ink-only and static) |
 | GAME-189 | Final semantic board UX and the standalone shell | the production board |
 | GAME-190 | Explanatory match/mismatch feedback and bounded game feel | any feedback system or dwell timing |
@@ -291,7 +368,13 @@ game board, and only Chromium is exercised in CI. From GAME-186: cross-engine an
 remain unproven; forced colors and reduced motion are checked through Chromium's emulation rather than real
 OS settings; the gallery's value list is a debug fixture and not curriculum content; and the circle model's
 legibility model measures a wedge by its outer arc and radial depth, which is a floor rather than a proof.
-Full accessibility and device qualification belongs to GAME-192.
+From GAME-187: the lane fixtures are **neutral examples** with no standards claim (the reviewed content is
+the curriculum map); a review board is a fresh deal of the same lane rather than a targeted re-serve of the
+confused value, so the session *reports* whether that value was re-encountered instead of forcing it; a
+lane with 100 in its catalogue cannot offer the number line legibly at any shipped card size, so grade 4
+resolves a hundredth symbolically; and adaptation and review are pure, tested domain logic that no browser
+surface drives yet. Full accessibility and device qualification belongs to GAME-192, and the session
+lifecycle that would exercise adaptation in play belongs to GAME-191.
 
 ## Provenance
 

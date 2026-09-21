@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { MAX_PAIR_COUNT, MIN_PAIR_COUNT } from "../src/engine";
 import {
+  DEFAULT_LANE_THRESHOLDS,
   DEFAULT_MAX_FORMS_PER_FAMILY,
+  DISTRACTOR_FAMILIES,
   GRADE_BANDS,
+  LABEL_VISIBILITY_VALUES,
   LANE_MAX_DENOMINATOR,
   LANE_MIN_DENOMINATOR,
   LaneConfigError,
+  MIN_LANE_SCALE_FACTOR,
   assertValidLane,
   isSatisfiableLane,
   laneIndexAfter,
@@ -15,8 +19,11 @@ import {
   laneSequenceProblems,
   laneStructureProblems,
   validateLaneConfig,
+  type DistractorFamily,
+  type LabelVisibility,
   type LaneConfig,
   type LaneSequence,
+  type LaneThresholds,
 } from "../src/lanes";
 import type { RepresentationCandidate, RepresentationFamily } from "../src/representations";
 import { TEST_LANE_BOX, laneWithCatalogue, laneWithMix, testLane } from "./laneTestFixtures";
@@ -207,6 +214,90 @@ describe("lane structure", () => {
       "whole must be an object; received array(length 0)",
     ]);
     expect(laneStructureProblems(testLane({ distractorPolicy: { minimumNearMissLinks: 0 } }))).toEqual([]);
+  });
+});
+
+describe("the lane's declared progression policies", () => {
+  it("states the canonical values it validates against", () => {
+    expect(LABEL_VISIBILITY_VALUES).toEqual(["always", "on-reveal", "never"]);
+    expect(DISTRACTOR_FAMILIES).toEqual(["same-numerator", "same-denominator"]);
+    expect(DEFAULT_LANE_THRESHOLDS).toEqual({ progression: 2, fallback: 2, review: 1 });
+    expect(MIN_LANE_SCALE_FACTOR).toBe(2);
+  });
+
+  it("requires a scale-factor set of distinct integers of at least two", () => {
+    expect(laneStructureProblems(testLane({ scaleFactors: "two" as unknown as readonly number[] }))).toEqual([
+      "scaleFactors must be an array; received string",
+    ]);
+    expect(laneStructureProblems(testLane({ scaleFactors: [] }))).toEqual([
+      "scaleFactors must contain at least one factor",
+    ]);
+    expect(laneStructureProblems(testLane({ scaleFactors: [1, 2, 2, 2.5] }))).toEqual([
+      "scaleFactors[0] must be at least 2; scale factor 1 is the value's own authored form and is always available; received 1",
+      "scaleFactors[2] duplicates scale factor 2",
+      "scaleFactors[3] must be a safe integer; received 2.5",
+    ]);
+    expect(laneStructureProblems(testLane({ scaleFactors: [2, 3] }))).toEqual([]);
+  });
+
+  it("requires a label visibility the layer knows", () => {
+    expect(
+      laneStructureProblems(testLane({ labelVisibility: "sometimes" as unknown as LabelVisibility })),
+    ).toEqual(["labelVisibility must be one of always, on-reveal, never; received string"]);
+    expect(laneStructureProblems(testLane({ labelVisibility: "on-reveal" }))).toEqual([]);
+    expect(laneStructureProblems(testLane({ labelVisibility: "never" }))).toEqual([]);
+  });
+
+  it("requires progression, fallback and review thresholds to be positive integers", () => {
+    expect(laneStructureProblems(testLane({ thresholds: [] as unknown as LaneThresholds }))).toEqual([
+      "thresholds must be an object; received array(length 0)",
+    ]);
+    expect(laneStructureProblems(testLane({ thresholds: { progression: 0, fallback: 2.5, review: -1 } }))).toEqual([
+      "thresholds.progression must be an integer of at least 1; received 0",
+      "thresholds.fallback must be an integer of at least 1; received 2.5",
+      "thresholds.review must be an integer of at least 1; received -1",
+    ]);
+    expect(laneStructureProblems(testLane({ thresholds: { progression: 1, fallback: 1, review: 1 } }))).toEqual([]);
+  });
+
+  it("requires the distractor gap to be a fraction and the distractor classes to be known", () => {
+    expect(
+      laneStructureProblems(testLane({ distractorPolicy: { minimumRationalGap: null as unknown as { numerator: number; denominator: number } } })),
+    ).toEqual(["distractorPolicy.minimumRationalGap must be an object; received null"]);
+
+    expect(
+      laneStructureProblems(testLane({ distractorPolicy: { minimumRationalGap: { numerator: -1, denominator: 0 } } })),
+    ).toEqual([
+      "distractorPolicy.minimumRationalGap.numerator must be a non-negative integer; received -1",
+      "distractorPolicy.minimumRationalGap.denominator must be a positive integer; received 0",
+    ]);
+
+    expect(
+      laneStructureProblems(testLane({ distractorPolicy: { families: "numerator" as unknown as readonly DistractorFamily[] } })),
+    ).toEqual(["distractorPolicy.families must be an array; received string"]);
+    expect(laneStructureProblems(testLane({ distractorPolicy: { families: [] } }))).toEqual([
+      "distractorPolicy.families must name at least one distractor class",
+    ]);
+    expect(
+      laneStructureProblems(
+        testLane({
+          distractorPolicy: {
+            families: ["same-numerator", "same-numerator", "same-numerator-and-denominator"] as unknown as readonly DistractorFamily[],
+          },
+        }),
+      ),
+    ).toEqual([
+      'distractorPolicy.families[1] repeats distractor class "same-numerator"',
+      "distractorPolicy.families[2] must be one of same-numerator, same-denominator; received string",
+    ]);
+
+    expect(
+      laneStructureProblems(
+        testLane({
+          distractorPolicy: { minimumRationalGap: { numerator: 1, denominator: 8 }, families: ["same-denominator"] },
+        }),
+      ),
+    ).toEqual([]);
   });
 });
 
