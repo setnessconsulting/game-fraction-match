@@ -25,6 +25,7 @@
 export { RATIONAL_ZERO, RationalError, rational, rationalSigned } from "./rational";
 export type { Rational } from "./rational";
 export {
+  compareRationals,
   countRationalOccurrences,
   distinctRationals,
   greatestCommonDivisor,

@@ -21,6 +21,7 @@ symbols look different. Canonical implementation repository for Jira Epic **GAME
 | Jira story | GAME-187 — FM-03 — Standalone grade lanes, representation progression and bounded review |
 | Jira story | GAME-188 — FM-04 — Production visual, responsive and motion design system |
 | Jira story | GAME-189 — FM-05 — Standalone semantic React game shell and responsive board |
+| Jira story | GAME-190 — FM-06 — Explanatory equivalence feedback, mismatch recovery and bounded game feel |
 | Node | 24 (see `.nvmrc` / `.node-version` / `engines.node`) |
 | Runtime dependencies | `react`, `react-dom` — nothing else |
 | Release kind | `static-web` (published by `setnessconsulting/games-site`) |
@@ -98,9 +99,11 @@ src/design/            Production design authority (GAME-188): tokens, the requi
 src/App.tsx            Application root: the game, or the debug shell behind `#debug`.
 src/app/               Debug fixture, the GAME-186 gallery, the GAME-187 lane panel, the GAME-188 design
                        panel, styles.
-src/game/              The playable surface (GAME-189): session model, focus model, board, shell, recovery.
+src/game/              The playable surface (GAME-189) and its feedback (GAME-190).
   session.ts           Every shell decision, with no React: grade, lane, warm-up, stages, intents.
   focus.ts             The deterministic roving-focus model, as arithmetic.
+  feedback.ts          Mismatch classes, exact bounded copy, the match demonstration and the window plan.
+  useInspectionWindow.ts  The cancelable 1.2s/3s window; a timer may only clear a pair, never change truth.
   Board.tsx            The board: engine state in, typed intents out, GAME-188 card states applied.
   GameApp.tsx          The stage machine, the calm-recovery boundary and the setup/instruction screens.
 scripts/               Architecture guards and the nested asset-base harness.
@@ -109,7 +112,7 @@ docs/provenance/       Legacy baseline provenance record.
 docs/representations/   The GAME-186 representation contract, written for its consumers.
 docs/lanes/            The GAME-187 lane contract and the grades 3-5 curriculum map.
 docs/design/           The GAME-188 design authority (labelled FALLBACK / FIGMA NOT QUALIFIED).
-docs/game/             The GAME-189 board and shell contract.
+docs/game/             The GAME-189 board and shell contract, and the GAME-190 copy register.
 ```
 
 ### Rational and engine authority
@@ -303,6 +306,28 @@ gives way, not the card** — a phone deals fewer pairs (4 pairs on a 320×568 p
 so every legibility proof and the all-cards-visible contract both hold. The board size is decided at deal time and
 recorded in [`docs/game/BOARD.md`](docs/game/BOARD.md).
 
+### Explanatory feedback (GAME-190)
+
+Every resolve teaches the relationship. A mismatch names the amount that is larger and the signal the pair shares
+(`Same top number. 1/2 is more than 1/3.`), and a match shows the shared amount in the two forms the learner
+actually picked, on one shared whole. Every learner-facing string is in
+[`docs/game/COPY_REGISTER.md`](docs/game/COPY_REGISTER.md).
+
+Two decisions are load-bearing:
+
+- **No mathematics happens in the copy.** Which amount is larger comes from a new engine primitive,
+  `compareRationals`, which is deliberately *not* a cross-multiplication — `a.n * b.d` can leave the safe-integer
+  range, so it compares integer parts and recurses on remainders. A sentence about a quantity is therefore exact
+  for any values the engine can construct, and presentation still does not compute mathematics.
+- **The inspection window is not motion.** A mismatched pair stays on screen for at least 1200ms and clears itself
+  by 3000ms, and those durations are **identical under a reduced-motion preference**: that window is the time the
+  two amounts need to be looked at, so collapsing it would change what the learner is told rather than how it is
+  drawn. Reduced motion still removes the decoration, and the browser journey asserts both halves.
+
+A timer may only ever clear a pending comparison. The engine decided the outcome and counted the move when the
+second card was chosen, so an automatic dismissal changes no truth — asserted by capturing the move count and
+matched set before and after it fires.
+
 ### Seeds and determinism
 
 The engine never reads ambient entropy. Seeds are 32-bit unsigned integers supplied as data. The
@@ -424,7 +449,7 @@ This foundation intentionally stops before the following work; it builds the sea
 | GAME-187 | Grade 3/4/5 lanes, denominator catalogues, representation mixes, distractors, progression and review | implemented here — see [`docs/lanes/CONTRACT.md`](docs/lanes/CONTRACT.md) and [`docs/lanes/CURRICULUM_MAP.md`](docs/lanes/CURRICULUM_MAP.md); it is content and rules, not a board, a session UI or production card art |
 | GAME-188 | Production visual/responsive/motion design | implemented here — see [`docs/design/DESIGN_SYSTEM.md`](docs/design/DESIGN_SYSTEM.md); the authority is the checked-in fallback, explicitly labelled `FALLBACK / FIGMA NOT QUALIFIED` because no Figma file exists, and it is a contract rather than a board |
 | GAME-189 | Final semantic board UX and the standalone shell | implemented here — see [`docs/game/BOARD.md`](docs/game/BOARD.md); the playable game is the root surface and the debug galleries moved to `#debug`. Not the GAME-335 iframe fixture, not GAME-190 feedback, not GAME-191 session bounds |
-| GAME-190 | Explanatory match/mismatch feedback and bounded game feel | any feedback system or dwell timing |
+| GAME-190 | Explanatory match/mismatch feedback and bounded game feel | implemented here — see [`docs/game/COPY_REGISTER.md`](docs/game/COPY_REGISTER.md); every explanation is generated from the engine's own values, bounded to 12 words, and the inspection window is identical under reduced motion. Not the GAME-191 session arc, and audio is deliberately absent (silence-first v1) |
 | GAME-191 | Bounded session lifecycle and factual summary | session bounds or summary |
 | GAME-192 | Full accessibility and device qualification (axe tooling is pre-provisioned) | accessibility qualification |
 | GAME-193 | Comparator scorecard and bounded playtest | any playtest or comparison |
@@ -447,13 +472,16 @@ until a real `fileKey` is recorded; 200% zoom is qualified by emulating the halv
 by driving a browser's own zoom setting; catalog card art and copy are not produced here, because inventing
 placeholder art would pre-empt GAME-194's promotion review. From GAME-189: the game is playable, but **the
 GAME-335 iframe fixture is not demonstrated** — GAME-335 is in Ready, not Done, and its games-site host contract
-is its own work; the production board deals a viewport-dependent number of pairs — 4 on a 320×568 phone, the lane's
-full 8 on a desktop — because a card is never shrunk below the box its coverage was proved at, so a phone plays a
-shorter board rather than a smaller picture; the mismatch surface states the fact
-and offers a continue rather than teaching anything, because the explanation belongs to GAME-190; there are no
-session bounds or summary, because those belong to GAME-191; and cross-engine scope is the board only — Chromium,
-Firefox and mobile WebKit run the board journey, while the representation, lane and design qualifications remain
-Chromium-only by their own recorded limitation. Full accessibility and device qualification belongs to GAME-192.
+is its own work; and the production board deals a viewport-dependent number of pairs — 4 on a 320×568 phone, the
+lane's full 8 on a desktop — because a card is never shrunk below the box its coverage was proved at, so a phone
+plays a shorter board rather than a smaller picture. From GAME-190: the feedback is text and pictures only —
+**silence-first v1 means there is no audio at all**, and none is claimed; the copy register is complete for what
+the game can currently say, but the match demonstration shows the pair's own two pictures rather than a
+purpose-drawn comparison figure; and the inspection window is verified with Playwright's reduced-motion
+emulation rather than a real OS setting. There are still no session bounds or summary, because those belong to
+GAME-191; cross-engine scope is the game journeys only — Chromium, Firefox and mobile WebKit run both of them,
+while the representation, lane and design qualifications remain Chromium-only by their own recorded limitation;
+and full accessibility and device qualification belongs to GAME-192.
 
 ## Provenance
 

@@ -56,5 +56,30 @@ export type {
 export { GRID_KEYS, focusAnchorIndex, isGridKey, nextFocusIndex, rovingTabIndexes, rowCountOf } from "./focus";
 export type { FocusGrid, GridKey } from "./focus";
 
-export { Board, useBoardLayout } from "./Board";
+export {
+  MAX_EXPLANATION_WORDS,
+  MAX_INSPECTION_MS,
+  MIN_INSPECTION_MS,
+  MISMATCH_CLASSES,
+  classifyMismatch,
+  countWords,
+  feedbackFor,
+  inspectionPlanFor,
+  inspectionPlanProblems,
+  matchFeedback,
+  mismatchFeedback,
+  sideFromPlan,
+} from "./feedback";
+export type {
+  FeedbackSide,
+  InspectionPlan,
+  MatchFeedback,
+  MismatchClass,
+  MismatchFeedback,
+} from "./feedback";
+
+export { useInspectionWindow, useMotionPreference } from "./useInspectionWindow";
+export type { InspectionWindow } from "./useInspectionWindow";
+
+export { Board, currentViewport, useBoardLayout } from "./Board";
 export { BoardErrorBoundary, CalmRecovery, GameApp, GameStage } from "./GameApp";

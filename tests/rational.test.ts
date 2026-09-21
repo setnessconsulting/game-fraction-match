@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   RATIONAL_ZERO,
   RationalError,
+  compareRationals,
   countRationalOccurrences,
   distinctRationals,
   greatestCommonDivisor,
@@ -156,5 +157,94 @@ describe("RationalError", () => {
     expect(error).toBeInstanceOf(Error);
     expect(error.name).toBe("RationalError");
     expect(error.message).toBe("nope");
+  });
+});
+
+describe("compareRationals", () => {
+  const order = (n1: number, d1: number, n2: number, d2: number): -1 | 0 | 1 =>
+    compareRationals(rational(n1, d1), rational(n2, d2));
+
+  it("orders positive fractions exactly", () => {
+    expect(order(1, 2, 1, 3)).toBe(1);
+    expect(order(1, 3, 1, 2)).toBe(-1);
+    expect(order(3, 4, 2, 3)).toBe(1);
+    expect(order(2, 3, 3, 4)).toBe(-1);
+    expect(order(7, 8, 5, 6)).toBe(1);
+    expect(order(1, 100, 1, 2)).toBe(-1);
+  });
+
+  it("is equal for equal values, including unreduced authored forms", () => {
+    expect(order(1, 2, 1, 2)).toBe(0);
+    expect(order(2, 4, 1, 2)).toBe(0);
+    expect(rationalEquals(rational(2, 4), rational(1, 2))).toBe(true);
+  });
+
+  it("places zero and whole numbers", () => {
+    expect(order(0, 1, 1, 2)).toBe(-1);
+    expect(order(1, 2, 0, 1)).toBe(1);
+    expect(order(0, 1, 0, 1)).toBe(0);
+    expect(order(3, 1, 5, 2)).toBe(1);
+    expect(order(5, 2, 3, 1)).toBe(-1);
+    expect(order(2, 2, 1, 1)).toBe(0);
+  });
+
+  it("orders signed values by sign first, then magnitude", () => {
+    expect(order(-1, 2, 1, 3)).toBe(-1);
+    expect(order(1, 3, -1, 2)).toBe(1);
+    expect(order(-1, 2, -1, 2)).toBe(0);
+    // -1/2 is greater than -3/4: closer to zero is larger on the negative side.
+    expect(order(-1, 2, -3, 4)).toBe(1);
+    expect(order(-3, 4, -1, 2)).toBe(-1);
+    expect(order(0, 1, -1, 5)).toBe(1);
+  });
+
+  it("is antisymmetric", () => {
+    const pairs: readonly (readonly [number, number, number, number])[] = [
+      [1, 2, 2, 3],
+      [5, 6, 7, 8],
+      [-2, 3, 1, 4],
+      [0, 1, 1, 9],
+      [9, 4, 9, 4],
+    ];
+    for (const [n1, d1, n2, d2] of pairs) {
+      expect(order(n1, d1, n2, d2), `${n1}/${d1} vs ${n2}/${d2}`).toBe(
+        order(n2, d2, n1, d1) === 0 ? 0 : ((order(n2, d2, n1, d1) * -1) as -1 | 1),
+      );
+    }
+  });
+
+  it("stays exact where a cross-multiplication would not", () => {
+    // n1 * d2 and n2 * d1 are both about 8.1e25 here: far outside the safe-integer range, so a
+    // cross-multiplying implementation working in doubles cannot distinguish these two values. The
+    // remainder recursion can, because its only multiplication is by a quotient.
+    const smaller = rational(9_007_199_254_740, 9_007_199_254_741);
+    const larger = rational(9_007_199_254_741, 9_007_199_254_742);
+
+    expect(compareRationals(smaller, larger)).toBe(-1);
+    expect(compareRationals(larger, smaller)).toBe(1);
+
+    // The double-precision cross product really does lose the difference, which is why this matters.
+    const crossOne = 9_007_199_254_740 * 9_007_199_254_742;
+    const crossTwo = 9_007_199_254_741 * 9_007_199_254_741;
+    expect(crossOne === crossTwo).toBe(true);
+  });
+
+  it("agrees with rationalEquals on equivalence, always", () => {
+    const values = [
+      rational(1, 2),
+      rational(2, 4),
+      rational(3, 6),
+      rational(1, 3),
+      rational(0, 1),
+      rational(-1, 2),
+      rational(4, 2),
+    ];
+    for (const left of values) {
+      for (const right of values) {
+        expect(compareRationals(left, right) === 0, `${left.numerator}/${left.denominator}`).toBe(
+          rationalEquals(left, right),
+        );
+      }
+    }
   });
 });

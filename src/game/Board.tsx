@@ -22,6 +22,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { planBoardLayout, type BoardLayout, type Viewport } from "../design";
 import { RepresentationByFamily, accessibilityLabelFor } from "../representations";
+import { feedbackFor, sideFromPlan } from "./feedback";
+import { useInspectionWindow, useMotionPreference } from "./useInspectionWindow";
 import {
   boardCardsInEngineOrder,
   boardPairCount,
@@ -115,6 +117,14 @@ export function Board({
     [activeIndex, grid.columns, grid.cardCount],
   );
 
+  const motionPreference = useMotionPreference();
+  const autoDismiss = useCallback(() => onIntent({ type: "acknowledge-comparison" }), [onIntent]);
+  const inspection = useInspectionWindow({
+    active: state !== null && state.pendingComparison !== null,
+    onAutoDismiss: autoDismiss,
+    preference: motionPreference,
+  });
+
   if (state === null || board === null) return null;
 
   if (failureInjected()) {
@@ -123,6 +133,30 @@ export function Board({
 
   const pendingComparison = state.pendingComparison;
   const complete = session.stage === "board-complete";
+
+  /*
+   * The explanation for the pair the engine just resolved, built from the engine's own outcome and values. Both
+   * sides come from the plan the board is already rendering, so the strip cannot show a picture the board is not
+   * showing.
+   */
+  const placedByIndex = new Map(placedCards.map((entry) => [entry.cardIndex, entry.card]));
+  const resolution = state.lastResolution;
+  const resolvedSides = (() => {
+    if (resolution === null) return null;
+    const left = placedByIndex.get(resolution.cardIndexes[0]);
+    const right = placedByIndex.get(resolution.cardIndexes[1]);
+    if (left === undefined || right === undefined) return null;
+    return Object.freeze({
+      outcome: resolution.outcome,
+      left: sideFromPlan(left),
+      right: sideFromPlan(right),
+    });
+  })();
+  const sides = resolvedSides === null ? null : ([resolvedSides.left, resolvedSides.right] as const);
+  const resolved =
+    resolvedSides === null ? null : feedbackFor(resolvedSides.outcome, resolvedSides.left, resolvedSides.right);
+  const mismatch = resolved !== null && resolved.kind === "mismatch" ? resolved : null;
+  const match = resolved !== null && resolved.kind === "match" ? resolved : null;
 
   return (
     <section
@@ -228,22 +262,87 @@ export function Board({
         })}
       </ul>
 
-      {pendingComparison === null ? null : (
-        // A pending comparison only ever exists for a mismatch: the engine resolves a match immediately and
-        // retains the pair, so there is no "match awaiting acknowledgement" state to branch on. The words are
-        // deliberately factual and short — GAME-190 owns the explanatory classifier and the copy register.
-        <div className="fm-board__explanation" data-feedback="mismatch" data-testid="game-explanation">
-          <p>
-            Those two are not the same amount.{" "}
-            <span className="design-note">Continue to clear them and keep looking.</span>
+      {pendingComparison === null || mismatch === null ? null : (
+        /*
+         * Mismatch recovery. Both cards stay on screen for the whole inspection window, and the explanation names
+         * the relationship exactly — which amount is larger, and the signal the pair shares. The continue control
+         * exists from the first frame but is disabled until the window allows it, so the affordance is discoverable
+         * while the minimum inspection time is still honoured, and the disabled state is a real attribute rather
+         * than a colour.
+         */
+        <div
+          className="fm-board__explanation game-feedback"
+          data-feedback="mismatch"
+          data-mismatch-class={mismatch.mismatchClass}
+          data-inspection={inspection.dismissable ? "open" : "holding"}
+          data-testid="game-explanation"
+        >
+          <p className="game-feedback__line" data-testid="game-mismatch-copy">
+            {mismatch.text}
+          </p>
+          <p className="design-note" data-testid="game-mismatch-note">
+            {inspection.dismissable ? "Continue when you are ready." : "Look at both cards."}
           </p>
           <button
             type="button"
             data-testid="game-acknowledge"
+            disabled={!inspection.dismissable}
             onClick={() => onIntent({ type: "acknowledge-comparison" })}
           >
             Continue
           </button>
+        </div>
+      )}
+
+      {pendingComparison !== null || match === null ? null : (
+        /*
+         * The shared comparison strip. One amount, shown in the two forms the learner actually picked, on one
+         * shared whole — the pair's own two pictures side by side rather than a new one drawn for the occasion.
+         * `comparisonProblems` is reported rather than hidden, so a pair the representation contract refuses to
+         * compare is not advertised as a demonstration.
+         */
+        <div
+          className="game-strip"
+          data-component="comparison-strip"
+          data-feedback="match"
+          data-distinct-forms={String(match.distinctForms)}
+          data-testid="game-match-strip"
+        >
+          <p className="game-feedback__line" data-testid="game-match-copy">
+            {match.text}
+          </p>
+          <ul className="game-strip__forms">
+            {[match.leftNotation, match.rightNotation].map((notation, index) => {
+              const side = sides === null ? null : sides[index] ?? null;
+              return (
+                <li
+                  className="game-strip__side"
+                  key={notation + String(index)}
+                  data-testid="game-strip-side"
+                  data-notation={notation}
+                  data-representation={match.forms[index] ?? ""}
+                >
+                  <div className="fm-board__card game-strip__card" data-testid="game-strip-card">
+                    {side === null ? null : (
+                      <RepresentationByFamily
+                        family={side.representation}
+                        fraction={side.form}
+                        whole={side.whole}
+                        box={board.lane.cardBox}
+                      />
+                    )}
+                  </div>
+                  <span className="game-card__label">{notation}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="design-note" data-testid="game-match-shared">
+            Same amount: {match.sharedNotation}
+            {match.comparisonProblems.length === 0
+              ? ""
+              : ` (this pair cannot be drawn on one shared whole: ${match.comparisonProblems.join("; ")})`}
+          </p>
         </div>
       )}
 
