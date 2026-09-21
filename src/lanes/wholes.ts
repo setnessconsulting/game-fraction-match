@@ -11,12 +11,10 @@
  */
 
 import {
-  RepresentationContractError,
   continuousWhole,
   discreteSetWhole,
   numberLineAxis,
   numberLineWhole,
-  representationWholes,
   type ContinuousWhole,
   type DiscreteSetWhole,
   type NumberLineAxis,
@@ -69,14 +67,18 @@ export function laneWholes(lane: LaneConfig): LaneWholes {
       : { description: declaration.numberLineWholeDescription }),
   });
 
-  const familyWholes = representationWholes({ continuous, set, numberLine });
-  const resolver: LaneWholeResolver = (family) => {
-    const whole = familyWholes(family);
-    // Unreachable while a lane declares all three kinds; kept because a silent `null` here would be a
-    // picture without a whole, which is exactly what GAME-186's contract refuses to draw.
-    if (whole === null) throw new RepresentationContractError(`the lane declares no whole for ${family}`);
-    return whole;
+  // Total by construction: a lane declares all three whole kinds, so every family resolves and no call site
+  // has to handle a missing whole. The mapping itself is the representation layer's rule, and
+  // `tests/laneWholes.test.ts` asserts that this table still agrees with it family by family, so the two
+  // cannot drift apart silently.
+  const familyWholes: Record<RepresentationFamily, RepresentationWhole> = {
+    symbolic: continuous,
+    bar: continuous,
+    circle: continuous,
+    set,
+    "number-line": numberLine,
   };
+  const resolver: LaneWholeResolver = (family) => familyWholes[family];
 
   return Object.freeze({ continuous, set, numberLine, axis, resolver });
 }

@@ -145,6 +145,16 @@ function isPositiveSafeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
+/**
+ * Whether a value is a plain options object.
+ *
+ * An array is `typeof "object"` too, and treating one as a policy would let `distractorPolicy: []` read as
+ * "use the defaults" — which is exactly the kind of silent acceptance this schema refuses elsewhere.
+ */
+function isOptionsObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /** Structural problems in a lane, before any maths or drawing is considered. */
 export function laneStructureProblems(lane: LaneConfig): readonly string[] {
   const problems: string[] = [];
@@ -200,7 +210,7 @@ export function laneStructureProblems(lane: LaneConfig): readonly string[] {
 
   const policy = lane.numeratorPolicy;
   if (policy !== undefined) {
-    if (typeof policy !== "object" || policy === null) {
+    if (!isOptionsObject(policy)) {
       problems.push(`numeratorPolicy must be an object; received ${describe(policy)}`);
     } else {
       for (const key of ["allowZero", "allowWhole", "allowImproper"] as const) {
@@ -250,7 +260,7 @@ export function laneStructureProblems(lane: LaneConfig): readonly string[] {
   }
 
   const whole = lane.whole;
-  if (typeof whole !== "object" || whole === null) {
+  if (!isOptionsObject(whole)) {
     problems.push(`whole must be an object; received ${describe(whole)}`);
   } else {
     for (const key of ["continuousWholeId", "continuousWholeDescription", "axisId"] as const) {
@@ -277,7 +287,7 @@ export function laneStructureProblems(lane: LaneConfig): readonly string[] {
 
   const distractorPolicy = lane.distractorPolicy;
   if (distractorPolicy !== undefined) {
-    if (typeof distractorPolicy !== "object" || distractorPolicy === null) {
+    if (!isOptionsObject(distractorPolicy)) {
       problems.push(`distractorPolicy must be an object; received ${describe(distractorPolicy)}`);
     } else if (
       distractorPolicy.minimumNearMissLinks !== undefined &&
