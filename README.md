@@ -24,6 +24,7 @@ symbols look different. Canonical implementation repository for Jira Epic **GAME
 | Jira story | GAME-190 — FM-06 — Explanatory equivalence feedback, mismatch recovery and bounded game feel |
 | Jira story | GAME-191 — FM-07 — Standalone session boundaries, factual summary and healthy replay |
 | Jira story | GAME-192 — FM-08 — Accessibility, keyboard, touch, forced-colors and reduced-motion qualification |
+| Jira story | GAME-193 — FM-09 — Comparator benchmark, originality review and child/device playtest |
 | Node | 24 (see `.nvmrc` / `.node-version` / `engines.node`) |
 | Runtime dependencies | `react`, `react-dom` — nothing else |
 | Release kind | `static-web` (published by `setnessconsulting/games-site`) |
@@ -115,6 +116,7 @@ docs/representations/   The GAME-186 representation contract, written for its co
 docs/lanes/            The GAME-187 lane contract and the grades 3-5 curriculum map.
 docs/design/           The GAME-188 design authority (labelled FALLBACK / FIGMA NOT QUALIFIED).
 docs/game/             The GAME-189 board and shell contract, and the GAME-190 copy register.
+docs/quality/          The GAME-193 benchmark scorecard — the single release gate, with the playtest protocol.
 ```
 
 ### Rational and engine authority
@@ -371,6 +373,21 @@ all three engines.
 Recorded honestly: **NVDA and VoiceOver have not been run.** They are listed as pending rather than inferred from
 automated output, and so are real OS high-contrast/reduced-motion settings and physical-device touch.
 
+### The release gate (GAME-193)
+
+[`docs/quality/BENCHMARK_SCORECARD.md`](docs/quality/BENCHMARK_SCORECARD.md) is the explicit, reproducible quality
+gate, evaluated against one exact candidate commit. All 20 rows are filled, every numeric claim states its
+measurement origin, and the six zero-tolerance rows are marked.
+
+**Row 16 (screen-reader parity and hidden-value protection) is Below**, so the candidate may not be promoted:
+hidden-value protection passes and axe is clean, but **NVDA and VoiceOver have not been run** and automated output
+cannot substitute for a human listener. Row 13 (progression/scaffolding) is Below and owner-deferred with its risk
+written down — the difficulty ladder is implemented and tested but no browser surface drives it yet.
+
+The comparator study and the child/device playtest are **pending, not performed**, and the scorecard says so rather
+than dressing thin evidence up as a review. The playtest protocol is written and ready to run against the recorded
+candidate.
+
 ### Seeds and determinism
 
 The engine never reads ambient entropy. Seeds are 32-bit unsigned integers supplied as data. The
@@ -495,7 +512,7 @@ This foundation intentionally stops before the following work; it builds the sea
 | GAME-190 | Explanatory match/mismatch feedback and bounded game feel | implemented here — see [`docs/game/COPY_REGISTER.md`](docs/game/COPY_REGISTER.md); every explanation is generated from the engine's own values, bounded to 12 words, and the inspection window is identical under reduced motion. Not the GAME-191 session arc, and audio is deliberately absent (silence-first v1) |
 | GAME-191 | Bounded session lifecycle and factual summary | implemented here — the arc is bounded at 2 boards/3 minutes soft and 4 boards/6 minutes hard, `activeMs` counts only visible, in-play, non-idle time, and the summary reports this session's own facts with a deterministic coaching line. Not GAME-192's accessibility qualification |
 | GAME-192 | Full accessibility and device qualification (axe tooling is pre-provisioned) | implemented here — see [`docs/game/ACCESSIBILITY.md`](docs/game/ACCESSIBILITY.md). The automated surface is qualified across five required states; **NVDA and VoiceOver are recorded as pending, not performed**, and real OS high-contrast/reduced-motion and physical-device touch remain pending |
-| GAME-193 | Comparator scorecard and bounded playtest | any playtest or comparison |
+| GAME-193 | Comparator scorecard and bounded playtest | implemented here — see [`docs/quality/BENCHMARK_SCORECARD.md`](docs/quality/BENCHMARK_SCORECARD.md). All 20 rows are evaluated against one exact candidate, and **row 16 is Below**, which blocks promotion: screen-reader parity is unqualified. The comparator study and the owner-run playtest are recorded as pending, not performed |
 | GAME-194 | Immutable R2 publication and production promotion | publication, manifests, promotion |
 | GAME-335 | games-site coming-soon routes and the preview-only host seam | any `games-site` change |
 
