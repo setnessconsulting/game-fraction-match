@@ -463,10 +463,11 @@ including `/`, `/index.html` and `/assets/`. Playwright then asserts that:
 | --- | --- |
 | Canonical rationals: reduction, signs, zero, zero denominator, unsafe integers, boundary values, equivalence oracle | `tests/rational.test.ts` |
 | Authored form preservation and validation | `tests/fractionForm.test.ts` |
+| Broad equivalent-fraction regression: equivalence groups, near-miss rejection, duplicate representations, malformed input, an independent BigInt oracle sweep and the double-precision traps | `tests/fractionEquivalence.test.ts` |
 | Deterministic generator including a pinned reference vector | `tests/rng.test.ts` |
 | 4-pair and 8-pair boards, configuration failure modes, deck invariants | `tests/deck.test.ts` |
 | Many-seed property sweeps over generic and boundary fixtures | `tests/deckProperties.test.ts` |
-| State machine: reveal, match, mismatch, moves, duplicate/third-card/matched rejection, acknowledgement, completion, purity, `pairId` independence | `tests/gameState.test.ts` |
+| State machine: reveal, match, mismatch, moves, duplicate/third-card/matched rejection, acknowledgement, completion, purity, `pairId` independence, equivalent-fraction matching | `tests/gameState.test.ts` |
 | Historical eight-pair board parity as a regression fixture | `tests/legacyParity.test.ts` |
 | Guard rule engine, including negative cases | `tests/architectureGuards.test.ts` |
 | Public engine boundary contract | `tests/engineBoundary.test.ts` |

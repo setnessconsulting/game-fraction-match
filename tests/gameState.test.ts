@@ -282,6 +282,132 @@ describe("correctness never consults pairId", () => {
   });
 });
 
+describe("equivalence, not notation, decides a match", () => {
+  /** Deal a two-card board, choose both cards in order, and return the resolved state. */
+  const resolvePair = (left: readonly [number, number], right: readonly [number, number]): GameState => {
+    const deck = handMadeDeck([card(left[0], left[1], "left"), card(right[0], right[1], "right")]);
+    const state = createGameState(deck);
+    return select(select(state, 0).state, 1).state;
+  };
+
+  /**
+   * Every enumerated equivalent representation must resolve as a match and complete the board. The
+   * first two entries are the canonical cases (`1/2` vs `2/4`, `2/3` vs `4/6`); the rest exercise the
+   * supported corners: larger equivalents, one, an improper fraction, a denominator of one, a zero
+   * numerator and a negative value.
+   */
+  const MATCHING_PAIRS: readonly (readonly [readonly [number, number], readonly [number, number], string])[] = [
+    [[1, 2], [2, 4], "halves"],
+    [[2, 3], [4, 6], "two thirds"],
+    [[3, 4], [6, 8], "three quarters"],
+    [[1, 2], [500_000_000, 1_000_000_000], "large equivalent"],
+    [[1, 1], [7, 7], "equal to one"],
+    [[5, 2], [10, 4], "improper fraction"],
+    [[7, 1], [14, 2], "denominator of one"],
+    [[0, 5], [0, 3], "zero numerator"],
+    [[-1, 2], [-2, 4], "negative value"],
+  ];
+
+  for (const [left, right, label] of MATCHING_PAIRS) {
+    it(`matches ${left[0]}/${left[1]} with ${right[0]}/${right[1]} (${label})`, () => {
+      const state = resolvePair(left, right);
+
+      expect(state.lastResolution).toEqual({ cardIndexes: [0, 1], outcome: "match", moveNumber: 1 });
+      expect(state.matchedCardIndexes).toEqual([0, 1]);
+      expect(state.revealedCardIndexes).toEqual([]);
+      expect(state.pendingComparison).toBeNull();
+      expect(state.moves).toBe(1);
+      expect(state.status).toBe("complete");
+      expect(isGameComplete(state)).toBe(true);
+      expect(cardStateOf(state, 0)).toBe("matched");
+      expect(cardStateOf(state, 1)).toBe("matched");
+    });
+  }
+
+  /** Near-miss distractors and precision traps: different amounts that must never resolve as a match. */
+  const MISMATCHING_PAIRS: readonly (readonly [readonly [number, number], readonly [number, number], string])[] = [
+    [[1, 2], [1, 3], "same numerator, different denominator"],
+    [[3, 4], [3, 5], "same numerator, different denominator"],
+    [[2, 5], [3, 5], "different numerator, same denominator"],
+    [[7, 10], [9, 10], "different numerator, same denominator"],
+    [[1, 2], [2, 3], "adjacent values"],
+    [[3, 4], [4, 5], "close but not equal"],
+    [[1, 1], [1, 2], "whole versus part"],
+    [[0, 1], [1, 1], "zero versus one"],
+    [[-1, 2], [1, 2], "the sign is part of the value"],
+    [[9_007_199_254_988, 9_007_199_254_989], [9_007_199_254_989, 9_007_199_254_990], "identical double quotient"],
+  ];
+
+  for (const [left, right, label] of MISMATCHING_PAIRS) {
+    it(`refuses to match ${left[0]}/${left[1]} with ${right[0]}/${right[1]} (${label})`, () => {
+      const state = resolvePair(left, right);
+
+      expect(state.lastResolution?.outcome).toBe("mismatch");
+      expect(state.matchedCardIndexes).toEqual([]);
+      expect(state.pendingComparison?.outcome).toBe("mismatch");
+      expect(state.phase).toBe("awaiting-acknowledgement");
+      expect(state.status).toBe("active");
+      expect(state.moves).toBe(1);
+      expect(remainingPairCount(state)).toBe(1);
+      expect(isGameComplete(state)).toBe(false);
+    });
+  }
+
+  it("counts deliberate mismatches as moves without disturbing completion", () => {
+    const deck = handMadeDeck([card(1, 2, "a"), card(2, 4, "a"), card(2, 3, "b"), card(4, 6, "b")]);
+    let state = createGameState(deck);
+
+    // A deliberate wrong pairing first: 1/2 against 2/3, then acknowledged.
+    state = select(select(state, 0).state, 2).state;
+    expect(state.lastResolution?.outcome).toBe("mismatch");
+    expect(state.moves).toBe(1);
+    state = acknowledge(state).state;
+    expect(state.moves).toBe(1);
+    expect(state.revealedCardIndexes).toEqual([]);
+
+    // Then the two real pairs, in either order.
+    state = select(select(state, 0).state, 1).state;
+    expect(state.lastResolution?.outcome).toBe("match");
+    state = select(select(state, 2).state, 3).state;
+    expect(state.lastResolution?.outcome).toBe("match");
+
+    expect(state.moves).toBe(3);
+    expect(state.status).toBe("complete");
+    expect(remainingPairCount(state)).toBe(0);
+    expect(state.matchedCardIndexes).toEqual([0, 1, 2, 3]);
+  });
+
+  it("ignores pair ids when it decides a board of equivalent fractions", () => {
+    // Every card carries a cross-wise pair id, so a shared id never lines up with a shared value.
+    const state = createGameState(
+      handMadeDeck([card(1, 2, "b"), card(1, 3, "a"), card(1, 2, "a"), card(1, 3, "b")]),
+    );
+    // Cards 0 and 2 are both 1/2 despite disagreeing on pairId.
+    expect(select(select(state, 0).state, 2).state.lastResolution?.outcome).toBe("match");
+    // Cards 0 and 1 disagree in value despite sharing a compatible id elsewhere.
+    expect(select(select(state, 0).state, 1).state.lastResolution?.outcome).toBe("mismatch");
+  });
+
+  it("replays an identical deal to an identical result", () => {
+    const cards = [card(1, 2, "a"), card(2, 4, "a"), card(2, 3, "b"), card(4, 6, "b")];
+    const sequence: readonly number[] = [0, 1, 2, 3];
+
+    const play = (): GameState => {
+      let state = createGameState(handMadeDeck(cards));
+      for (const index of sequence) {
+        state = select(state, index).state;
+        if (state.pendingComparison !== null) state = acknowledge(state).state;
+      }
+      return state;
+    };
+
+    const first = play();
+    expect(play()).toEqual(first);
+    expect(first.status).toBe("complete");
+    expect(first.moves).toBe(2);
+  });
+});
+
 describe("board completion", () => {
   it("completes an 8-pair board and derives status from matched cards", () => {
     const deck = deckFor();
