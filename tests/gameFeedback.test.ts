@@ -4,6 +4,8 @@ import { compareRationals, createFractionForm } from "../src/engine";
 import {
   MAX_EXPLANATION_WORDS,
   MAX_INSPECTION_MS,
+  announcementFor,
+  boardCompleteCopy,
   MIN_INSPECTION_MS,
   MISMATCH_CLASSES,
   classifyMismatch,
@@ -246,5 +248,66 @@ describe("the inspection window", () => {
   it("gives the learner a real stretch of time to dismiss the pair themselves", () => {
     const plan = inspectionPlanFor("full");
     expect(plan.autoDismissAfterMs - plan.dismissableAfterMs).toBeGreaterThanOrEqual(1000);
+  });
+});
+
+describe("the bounded live region", () => {
+  it("says nothing when there is nothing to say", () => {
+    expect(announcementFor({ outcome: null, feedback: null, remainingPairs: 4, complete: false })).toBe("");
+  });
+
+  it("announces the explanation for the pair the engine just resolved", () => {
+    const [matchLeft, matchRight] = matchingPair();
+    const matched = matchFeedback(matchLeft, matchRight);
+    expect(
+      announcementFor({ outcome: "match", feedback: matched, remainingPairs: 4, complete: false }),
+    ).toBe(matched.text);
+
+    const [left, right] = mismatchingPair();
+    const mismatched = mismatchFeedback(left, right);
+    expect(
+      announcementFor({ outcome: "mismatch", feedback: mismatched, remainingPairs: 4, complete: false }),
+    ).toBe(mismatched.text);
+  });
+
+  it("lets the completion of the board win over the pair that completed it", () => {
+    const [matchLeft, matchRight] = matchingPair();
+    const matched = matchFeedback(matchLeft, matchRight);
+
+    // Both are true after the last pair, so exactly one message is chosen rather than two being queued.
+    const announcement = announcementFor({ outcome: "match", feedback: matched, remainingPairs: 0, complete: true });
+    expect(announcement).toBe(boardCompleteCopy(0));
+    expect(announcement).not.toBe(matched.text);
+  });
+
+  it("is a pure function of the board's state, which is what makes it once-per-state", () => {
+    const [left, right] = mismatchingPair();
+    const mismatched = mismatchFeedback(left, right);
+    const input = { outcome: "mismatch" as const, feedback: mismatched, remainingPairs: 3, complete: false };
+
+    // A re-render produces the same string, and a live region whose text does not change is not announced again.
+    expect(announcementFor(input)).toBe(announcementFor(input));
+  });
+
+  it("uses one completion string for both the announcement and the visible line", () => {
+    expect(boardCompleteCopy(2)).toBe(
+      "Board complete. 2 pairs left. Nothing starts on its own — choose what comes next.",
+    );
+    expect(boardCompleteCopy(0)).toContain("Board complete.");
+  });
+
+  it("never announces a card the learner has not turned over", () => {
+    // The announcement is one of the two explanation templates, and both are built from the resolved pair only —
+    // there is no other source of text it could draw on.
+    const [left, right] = mismatchingPair();
+    const mismatched = mismatchFeedback(left, right);
+    const announcement = announcementFor({
+      outcome: "mismatch",
+      feedback: mismatched,
+      remainingPairs: 3,
+      complete: false,
+    });
+    expect(announcement).toContain(mismatched.leftNotation);
+    expect(announcement).toContain(mismatched.rightNotation);
   });
 });

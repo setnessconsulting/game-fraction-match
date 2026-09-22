@@ -194,6 +194,42 @@ export function sideFromPlan(card: LaneCardPlan): FeedbackSide {
   return Object.freeze({ form: card.form, representation: card.representation, whole: card.whole });
 }
 
+/** The single announcement for the current board state. One message, derived, so nothing is queued or lost. */
+export type AnnouncementInput = {
+  readonly outcome: "match" | "mismatch" | null;
+  readonly feedback: MatchFeedback | MismatchFeedback | null;
+  readonly remainingPairs: number;
+  readonly complete: boolean;
+};
+
+/**
+ * The board's completion copy, in one place.
+ *
+ * Used for the visible line *and* for the announcement, so a screen-reader user and a sighted user are told the
+ * same thing rather than two versions of it.
+ */
+export function boardCompleteCopy(remainingPairs: number): string {
+  return `Board complete. ${remainingPairs} pairs left. Nothing starts on its own — choose what comes next.`;
+}
+
+/**
+ * What the live region says right now.
+ *
+ * **Derived, not queued.** The announcement is a pure function of the board's current state, so there is exactly
+ * one message per state and a re-render cannot repeat it: a live region whose text does not change is not
+ * re-announced. Coalescing falls out of that rather than being implemented — several state changes that produce
+ * the same message produce one announcement, and the final outcome cannot be lost behind a queue because there is
+ * no queue to be behind.
+ *
+ * Completion takes precedence over the pair that completed it, because "the board is done" is the fact that
+ * matters most and it already implies the last pair resolved.
+ */
+export function announcementFor(input: AnnouncementInput): string {
+  if (input.complete) return boardCompleteCopy(input.remainingPairs);
+  if (input.feedback === null) return "";
+  return input.feedback.text;
+}
+
 /** The inspection-window contract: how long a mismatch stays on screen, and when it may be left. */
 export const MIN_INSPECTION_MS = 1200;
 export const MAX_INSPECTION_MS = 3000;
