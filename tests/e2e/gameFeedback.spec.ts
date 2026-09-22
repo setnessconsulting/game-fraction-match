@@ -207,3 +207,84 @@ test.describe("GAME-190 feedback â€” shipped build", () => {
     expect(copy.length).toBeGreaterThan(0);
   });
 });
+
+test.describe("GAME-192 announcements â€” shipped build", () => {
+  test("announces the outcome once, through a single bounded live region", async ({ page }) => {
+    await page.goto("/");
+    await page.locator('[data-grade-band="grade-4"]').click();
+    await page.getByTestId("game-begin").click();
+    await expect(page.getByTestId("game-card").first()).toBeVisible();
+
+    // Exactly one polite live region on the board, and it is the game's own announcement path.
+    await expect(page.locator('[data-testid="game-board"] [role="status"]')).toHaveCount(1);
+    const announcement = page.getByTestId("game-announcement");
+    await expect(announcement).toHaveAttribute("aria-live", "polite");
+    await expect(announcement).toHaveText("");
+
+    // Resolve a pair. Whether it matched or not, the region speaks once and says the same thing the sighted
+    // explanation says â€” which is what stops there being two sources of copy.
+    const cards = page.getByTestId("game-card");
+    await cards.nth(0).click();
+    await cards.nth(1).click();
+
+    await expect(announcement).not.toHaveText("");
+    const announced = (await announcement.innerText()).trim();
+    expect(announced.split(/\s+/).length).toBeLessThanOrEqual(12);
+
+    const explanation = page.getByTestId("game-mismatch-copy");
+    const strip = page.getByTestId("game-match-copy");
+    const visible =
+      (await explanation.count()) > 0 ? (await explanation.innerText()).trim() : (await strip.innerText()).trim();
+    expect(announced).toBe(visible);
+  });
+
+  /*
+   * KNOWN DEFECT — recorded, not worked around and not deleted.
+   *
+   * Selecting a card sets `disabled` on it, because the engine refuses a duplicate selection. A disabled element
+   * cannot hold focus, so the browser drops focus to <body> the instant a keyboard user activates a card and the
+   * arrow keys then arrive nowhere: a keyboard-only learner can reveal the first card and cannot reach a second.
+   *
+   * Marked `fixme` so the check stays visible in the suite as an open one rather than being quietly removed or
+   * weakened. A first fix attempt (re-focusing the engine's anchor when focus was destroyed) did not resolve it and
+   * was reverted rather than shipped unverified.
+   *
+   * Direction: keep focus on the grid across the disabling transition — restore it synchronously when the activated
+   * card becomes unselectable, or stop using `disabled` for the already-revealed card and rely on the engine's
+   * refusal plus `aria-disabled`, so the element stays focusable.
+   */
+  test.fixme("resolves a pair by keyboard alone, without losing focus on the first selection", async ({ page }) => {
+    await page.goto("/");
+    await page.locator('[data-grade-band="grade-4"]').click();
+    await page.getByTestId("game-begin").focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("game-board")).toBeVisible();
+
+    const tabbable = await page.evaluate(
+      () =>
+        Array.from(document.querySelectorAll('[data-testid="game-card"]')).filter(
+          (card) => card.getAttribute("tabindex") === "0",
+        ).length,
+    );
+    expect(tabbable).toBe(1);
+
+    const cards = page.getByTestId("game-card");
+    await cards.nth(0).focus();
+    await page.keyboard.press("Enter");
+    await expect(cards.nth(0)).toHaveAttribute("data-card-state", "revealed");
+
+    // The grid can be walked, which is how a second card is reached without a pointer.
+    await page.keyboard.press("ArrowRight");
+    const focused = await page.evaluate(() => {
+      const active = document.activeElement as HTMLElement | null;
+      return active === null ? null : (active.dataset.cardIndex ?? "not-a-card");
+    });
+    expect(focused).not.toBe(null);
+    expect(focused).not.toBe("not-a-card");
+    expect(focused).not.toBe("0");
+
+    // And the second card can be chosen from the keyboard, resolving the pair.
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("game-announcement")).not.toHaveText("");
+  });
+});

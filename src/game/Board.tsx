@@ -22,7 +22,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { planBoardLayout, type BoardLayout, type Viewport } from "../design";
 import { RepresentationByFamily, accessibilityLabelFor } from "../representations";
-import { feedbackFor, sideFromPlan } from "./feedback";
+import { announcementFor, boardCompleteCopy, feedbackFor, sideFromPlan } from "./feedback";
 import { useInspectionWindow, useMotionPreference } from "./useInspectionWindow";
 import {
   boardCardsInEngineOrder,
@@ -372,9 +372,23 @@ export function Board({
         </button>
       </div>
 
+      {/*
+        One bounded live region for the whole board (GAME-192). Its text is derived from the engine's state, so a
+        re-render does not repeat it and the final outcome can never be queued behind an intermediate one. The
+        visible lines below say the same things; this is the single path a screen reader hears them on.
+      */}
+      <p className="fm-sr-only" role="status" aria-live="polite" data-testid="game-announcement">
+        {announcementFor({
+          outcome: resolution?.outcome ?? null,
+          feedback: resolved,
+          remainingPairs: pairsRemaining(session),
+          complete,
+        })}
+      </p>
+
       {complete ? (
-        <p className="status-line" role="status" data-testid="game-board-complete">
-          Board complete. {pairsRemaining(session)} pairs left. Nothing starts on its own — choose what comes next.
+        <p className="status-line" data-testid="game-board-complete">
+          {boardCompleteCopy(pairsRemaining(session))}
         </p>
       ) : null}
     </section>

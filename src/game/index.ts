@@ -61,6 +61,8 @@ export {
   MAX_INSPECTION_MS,
   MIN_INSPECTION_MS,
   MISMATCH_CLASSES,
+  announcementFor,
+  boardCompleteCopy,
   classifyMismatch,
   countWords,
   feedbackFor,
@@ -71,6 +73,7 @@ export {
   sideFromPlan,
 } from "./feedback";
 export type {
+  AnnouncementInput,
   FeedbackSide,
   InspectionPlan,
   MatchFeedback,
