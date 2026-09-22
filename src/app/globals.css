@@ -646,8 +646,17 @@ button:focus-visible {
   cursor: pointer;
 }
 
-.game-card:disabled {
+/*
+ * Cards carry `aria-disabled` rather than `disabled`, so that selecting one does not destroy a keyboard user's
+ * focus. The unavailable affordance is kept, but as styling rather than as a mechanism.
+ */
+.game-card:disabled,
+.game-card[aria-disabled="true"] {
   cursor: default;
+}
+
+.game-card[aria-disabled="true"] {
+  opacity: 0.7;
 }
 
 .game-card__label {

@@ -239,21 +239,14 @@ test.describe("GAME-192 announcements â€” shipped build", () => {
   });
 
   /*
-   * KNOWN DEFECT — recorded, not worked around and not deleted.
+   * Regression check for a fixed defect (GAME-192).
    *
-   * Selecting a card sets `disabled` on it, because the engine refuses a duplicate selection. A disabled element
-   * cannot hold focus, so the browser drops focus to <body> the instant a keyboard user activates a card and the
-   * arrow keys then arrive nowhere: a keyboard-only learner can reveal the first card and cannot reach a second.
-   *
-   * Marked `fixme` so the check stays visible in the suite as an open one rather than being quietly removed or
-   * weakened. A first fix attempt (re-focusing the engine's anchor when focus was destroyed) did not resolve it and
-   * was reverted rather than shipped unverified.
-   *
-   * Direction: keep focus on the grid across the disabling transition — restore it synchronously when the activated
-   * card becomes unselectable, or stop using `disabled` for the already-revealed card and rely on the engine's
-   * refusal plus `aria-disabled`, so the element stays focusable.
+   * Selecting a card used to set `disabled` on it, which made the browser drop focus to <body> and left a
+   * keyboard-only learner unable to reach a second card — the arrow keys arrived nowhere. Cards now carry
+   * `aria-disabled` instead, so the element stays focusable while the engine remains the thing that refuses an
+   * illegal pick. This check fails if that ever regresses.
    */
-  test.fixme("resolves a pair by keyboard alone, without losing focus on the first selection", async ({ page }) => {
+  test("resolves a pair by keyboard alone, without losing focus on the first selection", async ({ page }) => {
     await page.goto("/");
     await page.locator('[data-grade-band="grade-4"]').click();
     await page.getByTestId("game-begin").focus();
