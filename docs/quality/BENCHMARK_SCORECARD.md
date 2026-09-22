@@ -10,7 +10,7 @@ The explicit, reproducible quality gate for Fraction Match, evaluated against on
 | | |
 | --- | --- |
 | Repository | `setnessconsulting/game-fraction-match` |
-| Candidate commit | `2f0610b55069901994832ad719a136c5f1b08cca` (`main`) |
+| Candidate commit | `2f0610b55069901994832ad719a136c5f1b08cca`, evaluated as `main`; the artifact is unchanged by the follow-up cleanup in PR #11, which only removed a stray build log and added a `.gitignore` rule — neither is part of the build |
 | Version | `0.1.0` (package version; no release tag exists yet â€” tagging belongs to GAME-194) |
 | Build | `vite build`, production: `index-*.js` 320.98 KB raw / **94.45 KB gzip**, `index-*.css` 10.79 KB raw / 2.65 KB gzip |
 | Automated evidence | 36 unit files / **586 tests**; **101 browser tests** across desktop Chromium, desktop Firefox and mobile WebKit; 4 nested host tests |
