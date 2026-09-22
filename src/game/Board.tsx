@@ -230,7 +230,16 @@ export function Board({
                 data-fraction={valueVisible ? fractionLabelOf(card.form.numerator, card.form.denominator) : undefined}
                 aria-label={name}
                 tabIndex={tabIndexes[cardIndex] ?? -1}
-                disabled={!selectable}
+                /*
+                 * `aria-disabled`, never `disabled` (GAME-192).
+                 *
+                 * A `disabled` element cannot hold focus, so the browser drops focus to <body> the instant a
+                 * keyboard user selects a card — and the arrow keys then arrive nowhere, leaving a keyboard-only
+                 * learner unable to reach a second card. The engine already refuses an illegal selection, so the
+                 * attribute is a *statement* about legality rather than the mechanism guarding it: the card stays
+                 * focusable and inspectable, and a click that does reach the handler is refused by the engine.
+                 */
+                aria-disabled={!selectable}
                 onKeyDown={handleKeyDown}
                 onClick={() => onIntent({ type: "select-card", cardIndex })}
               >

@@ -260,7 +260,9 @@ test.describe("GAME-189 board — shipped build", () => {
     // refused by the engine — the shell holds no second opinion about who may be picked.
     const before = await boardSignature(page);
     for (let index = 0; index < WARM_UP_CARD_COUNT; index += 1) {
-      await expect(cards.nth(index)).toBeDisabled();
+      // Cards state their unavailability with aria-disabled rather than `disabled`, so a selection does not
+      // destroy a keyboard user's focus (GAME-192). The engine is still what refuses an illegal pick.
+      await expect(cards.nth(index)).toHaveAttribute("aria-disabled", "true");
     }
 
     const third = Array.from({ length: WARM_UP_CARD_COUNT }, (_, index) => index).find(

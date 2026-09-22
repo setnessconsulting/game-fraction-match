@@ -23,6 +23,7 @@ symbols look different. Canonical implementation repository for Jira Epic **GAME
 | Jira story | GAME-189 — FM-05 — Standalone semantic React game shell and responsive board |
 | Jira story | GAME-190 — FM-06 — Explanatory equivalence feedback, mismatch recovery and bounded game feel |
 | Jira story | GAME-191 — FM-07 — Standalone session boundaries, factual summary and healthy replay |
+| Jira story | GAME-192 — FM-08 — Accessibility, keyboard, touch, forced-colors and reduced-motion qualification |
 | Node | 24 (see `.nvmrc` / `.node-version` / `engines.node`) |
 | Runtime dependencies | `react`, `react-dom` — nothing else |
 | Release kind | `static-web` (published by `setnessconsulting/games-site`) |
@@ -351,6 +352,25 @@ practised, mismatches by shared signal — plus one deterministic coaching line.
 level, streak or comparison to anything**, because the game keeps no record of any other session to compare with.
 The two summary actions (`Play another session`, `Change grade`) are identical in styling and weight.
 
+### Accessibility qualification (GAME-192)
+
+The automated surface is qualified across five required states — grade setup, instruction, board, comparing and
+either mismatch or match, plus the summary — with axe finding nothing serious or critical, every control measured
+at ≥ 44×44 CSS px, forced colors usable with no state depending on hue, 200% zoom losing no content horizontally,
+and the roving anchor always resting on a playable card. The full per-check record, including what is **not**
+claimed, is in [`docs/game/ACCESSIBILITY.md`](docs/game/ACCESSIBILITY.md).
+
+The story found and fixed a real defect: **selecting a card destroyed a keyboard user's focus.** Cards carried
+`disabled` when the engine would refuse them — which is the card that was just revealed — and a disabled element
+cannot hold focus, so the browser dropped focus to `<body>` and the arrow keys arrived nowhere. A keyboard-only
+learner could reveal the first card and could not reach a second. Cards now carry **`aria-disabled`**: the engine is
+still what refuses an illegal selection (asserted directly), so the attribute states legality rather than being the
+mechanism guarding it, and the element stays focusable. A keyboard-resolution journey guards against regression on
+all three engines.
+
+Recorded honestly: **NVDA and VoiceOver have not been run.** They are listed as pending rather than inferred from
+automated output, and so are real OS high-contrast/reduced-motion settings and physical-device touch.
+
 ### Seeds and determinism
 
 The engine never reads ambient entropy. Seeds are 32-bit unsigned integers supplied as data. The
@@ -474,7 +494,7 @@ This foundation intentionally stops before the following work; it builds the sea
 | GAME-189 | Final semantic board UX and the standalone shell | implemented here — see [`docs/game/BOARD.md`](docs/game/BOARD.md); the playable game is the root surface and the debug galleries moved to `#debug`. Not the GAME-335 iframe fixture, not GAME-190 feedback, not GAME-191 session bounds |
 | GAME-190 | Explanatory match/mismatch feedback and bounded game feel | implemented here — see [`docs/game/COPY_REGISTER.md`](docs/game/COPY_REGISTER.md); every explanation is generated from the engine's own values, bounded to 12 words, and the inspection window is identical under reduced motion. Not the GAME-191 session arc, and audio is deliberately absent (silence-first v1) |
 | GAME-191 | Bounded session lifecycle and factual summary | implemented here — the arc is bounded at 2 boards/3 minutes soft and 4 boards/6 minutes hard, `activeMs` counts only visible, in-play, non-idle time, and the summary reports this session's own facts with a deterministic coaching line. Not GAME-192's accessibility qualification |
-| GAME-192 | Full accessibility and device qualification (axe tooling is pre-provisioned) | accessibility qualification |
+| GAME-192 | Full accessibility and device qualification (axe tooling is pre-provisioned) | implemented here — see [`docs/game/ACCESSIBILITY.md`](docs/game/ACCESSIBILITY.md). The automated surface is qualified across five required states; **NVDA and VoiceOver are recorded as pending, not performed**, and real OS high-contrast/reduced-motion and physical-device touch remain pending |
 | GAME-193 | Comparator scorecard and bounded playtest | any playtest or comparison |
 | GAME-194 | Immutable R2 publication and production promotion | publication, manifests, promotion |
 | GAME-335 | games-site coming-soon routes and the preview-only host seam | any `games-site` change |
